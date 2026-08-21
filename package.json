@@ -1,0 +1,24 @@
+{
+  "name": "@ran-sh/agent-workflow",
+  "version": "1.6.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "agent-workflow": "./bin/agent-workflow.mjs"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "validate:examples": "node validator/validate-contract.mjs task examples/contracts/task-contract.example.json && node validator/validate-contract.mjs result examples/contracts/result-contract.example.json"
+  },
+  "files": [
+    "bin/",
+    "templates/",
+    "schema/",
+    "validator/",
+    "VERSION",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  }
+}
