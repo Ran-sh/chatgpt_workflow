@@ -40,16 +40,17 @@ Important options:
 - `--id <id>` — task ID; generated when omitted.
 - `--mode IMPLEMENT|TEST_ONLY|REVIEW_ONLY` — required.
 - `--source-branch <branch>` / `--source-commit <sha-or-symbolic-ref>` — detected from Git when omitted.
-- `--allow <path>` — repeatable; at least one is required for `IMPLEMENT`.
+- `--allow <path>` — repeatable; at least one explicit path is required for `IMPLEMENT`; read-only modes accept result paths only.
 - `--forbid <path-or-rule>` — repeatable; conservative defaults are used when omitted.
 - `--validate <check>` — repeatable and required at least once.
 - `--accept <criterion>` — repeatable and required at least once.
-- `--result <path>` — Result Contract path.
-- `--complete <path>` — repeatable completion commit contract override.
-- `--output <relative-path>` — defaults to `docs/agent-tasks/ACTIVE_TASK.json`.
-- `--companion` — also writes non-authoritative `ACTIVE_TASK.md`.
+- `--result <path>` — optional Result Contract path, but it must remain under `docs/agent-results/**`.
+- `--complete <path>` — repeatable completion-commit additions; mandatory Result/ACTIVE deletion entries are added automatically.
+- `--companion` — also writes non-authoritative `ACTIVE_TASK.md` and adds its deletion to the completion contract.
 
-The generator validates JSON before activation and refuses to replace an existing ACTIVE task.
+`task create` always writes the authoritative task to `docs/agent-tasks/ACTIVE_TASK.json`. The Result Contract is automatically added to writable scope. The generator validates JSON before activation and refuses to replace an existing ACTIVE task.
+
+`TEST_ONLY` and `REVIEW_ONLY` are machine-enforced as result-only write modes.
 
 ### Validate
 
@@ -58,7 +59,7 @@ agent-workflow validate task <file>
 agent-workflow validate result <file>
 ```
 
-Validates machine-readable Task and Result Contracts using the canonical validator shipped with this repository.
+Validates machine-readable Task and Result Contracts using the canonical zero-dependency validator shipped with this repository.
 
 ### Uninstall
 
@@ -66,7 +67,7 @@ Validates machine-readable Task and Result Contracts using the canonical validat
 agent-workflow uninstall [target]
 ```
 
-Reads the installation manifest and removes only recorded workflow-owned files and empty installer-created directories. Unmanaged project files are not touched.
+Reads the installation manifest, verifies its workflow source, and removes only recorded workflow-owned files and empty installer-created directories. Unmanaged project files are not touched.
 
 Uninstall refuses to run while `docs/agent-tasks/ACTIVE_TASK.json` or `ACTIVE_TASK.md` exists.
 
