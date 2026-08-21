@@ -50,7 +50,7 @@ The installer:
 
 - detects only repository facts it can verify;
 - copies a local workflow snapshot;
-- installs Task/Result schemas and the canonical validator;
+- installs Task/Result schemas, the machine task scaffold, and the canonical validator;
 - writes `docs/.agent-workflow-install.json` with exact file/directory ownership;
 - refuses to overwrite pre-existing managed files;
 - does **not** create an ACTIVE task.
@@ -69,7 +69,7 @@ The full prompt requires repository inspection, project-specific adaptation from
 
 ## Generate an active task
 
-The canonical active task is:
+The one authoritative active task path is:
 
 ```text
 docs/agent-tasks/ACTIVE_TASK.json
@@ -90,11 +90,14 @@ The generator:
 
 - requires an explicit mode, objective, validation, and acceptance criterion;
 - uses the current Git branch and exact commit when available, or accepts `--source-branch` / `--source-commit` explicitly;
-- requires at least one `--allow` path for `IMPLEMENT`;
-- defaults `TEST_ONLY` / `REVIEW_ONLY` writable scope to the Result Contract only;
+- requires at least one explicit `--allow` path for `IMPLEMENT`;
+- always adds the Result Contract itself to `allowed_changes`;
+- machine-enforces `TEST_ONLY` and `REVIEW_ONLY` as result-only write modes under `docs/agent-results/**`;
+- requires the Result Contract to live under `docs/agent-results/**`;
 - refuses to overwrite an existing ACTIVE task;
-- validates generated JSON before activating it;
+- validates generated JSON before activation;
 - writes optional `ACTIVE_TASK.md` only as a non-authoritative human companion;
+- includes required ACTIVE task deletion paths in `completion_commit_contract`;
 - records `executor: ANY` so platform choice cannot change permissions.
 
 Example implementation task:
@@ -113,10 +116,10 @@ Run `agent-workflow --help` for all generator flags.
 
 ## Execute a task
 
-Every executor uses the same trigger and same task path:
+Every executor uses the same trigger and task path:
 
 ```text
-Pull the latest target branch. Read `docs/agent-workflow.md`, then read and validate `docs/agent-tasks/ACTIVE_TASK.json`. Execute exactly that task and do not expand scope. Write the required Result Contract/report, remove `ACTIVE_TASK.json` only when the task is complete, and commit/push only paths authorized by the Task Contract. If the ACTIVE task is missing or invalid, stop instead of inferring work.
+Pull the latest target branch. Read `docs/agent-workflow.md`, then read and validate `docs/agent-tasks/ACTIVE_TASK.json`. Execute exactly that task and do not expand scope. Write the required Result Contract/report, remove `ACTIVE_TASK.json` and its `ACTIVE_TASK.md` companion if present only when the task is complete, and commit/push only paths authorized by the Task Contract. If the ACTIVE task is missing or invalid, stop instead of inferring work.
 ```
 
 The selected executor must obey the Task Contract's mode, source revision, allowed/forbidden scope, validations, acceptance criteria, result path, and completion commit contract.
@@ -129,6 +132,8 @@ If the active task is missing, the executor stops. It must not infer work from c
 agent-workflow validate task docs/agent-tasks/ACTIVE_TASK.json
 agent-workflow validate result <result-file>
 ```
+
+The zero-dependency validator rejects unsupported fields, invalid status/mode vocabulary, unsafe read-only writable scope, result paths outside `docs/agent-results/**`, missing Result Contract write permission, and incomplete completion contracts.
 
 The canonical examples can also be checked from this repository:
 
@@ -147,7 +152,7 @@ To remove a CLI-installed workflow:
 agent-workflow uninstall .
 ```
 
-Uninstall is ownership-based. It reads `docs/.agent-workflow-install.json`, removes only recorded workflow-owned files, and removes only directories that the installer itself created and that are still empty. Pre-existing/unmanaged files and directories are preserved.
+Uninstall is ownership-based. It reads `docs/.agent-workflow-install.json`, verifies the workflow source, removes only recorded workflow-owned files, and removes only directories that the installer itself created and that are still empty. Pre-existing/unmanaged files and directories are preserved.
 
 Uninstall **refuses to run while `ACTIVE_TASK.json` or its companion exists**. Complete or intentionally abandon the task first.
 
@@ -165,7 +170,7 @@ npm test
 npm run validate:examples
 ```
 
-CI validates schemas, canonical contracts, task generation, lifecycle behavior, uninstall safety, and version consistency.
+CI validates schemas, canonical contracts, the machine task template, task generation, lifecycle behavior, uninstall safety, and version consistency.
 
 ## Repository layout
 
