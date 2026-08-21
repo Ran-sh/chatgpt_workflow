@@ -15,10 +15,10 @@ If the active task is missing or invalid, stop. Do not infer work from chat hist
 ## 2. Modes
 
 - `IMPLEMENT` — implementation changes only inside `allowed_changes`.
-- `TEST_ONLY` — validation/reporting only unless the Task Contract explicitly permits another path.
-- `REVIEW_ONLY` — inspection/reporting only unless the Task Contract explicitly permits another path.
+- `TEST_ONLY` — validation/reporting only. Writable paths are limited to `docs/agent-results/**`.
+- `REVIEW_ONLY` — inspection/reporting only. Writable paths are limited to `docs/agent-results/**`.
 
-The Task Contract, not the executor adapter, determines scope.
+The Task Contract, not the executor adapter, determines scope. Read-only modes cannot grant themselves source/test/config write access through `allowed_changes`.
 
 ## 3. Source revision
 
