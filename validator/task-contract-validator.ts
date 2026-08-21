@@ -18,6 +18,8 @@ export interface TaskContract {
 }
 
 const allowedModes = new Set<TaskMode>(['IMPLEMENT', 'TEST_ONLY', 'REVIEW_ONLY']);
+const ACTIVE_TASK_JSON = 'docs/agent-tasks/ACTIVE_TASK.json';
+const ACTIVE_TASK_MD = 'docs/agent-tasks/ACTIVE_TASK.md';
 
 export function validateTaskContract(task: Partial<TaskContract>) {
   const errors: string[] = [];
@@ -37,8 +39,32 @@ export function validateTaskContract(task: Partial<TaskContract>) {
   if (!Array.isArray(task.completion_commit_contract)) errors.push('missing completion_commit_contract');
   if (task.delete_active_task_on_completion !== true) errors.push('delete_active_task_on_completion must be true');
 
-  if (task.mode === 'TEST_ONLY' && (task.allowed_changes ?? []).some(path => !/^docs\/agent-results\//.test(path))) {
-    errors.push('TEST_ONLY allowed_changes may only include docs/agent-results/**');
+  if (task.result_contract && !/^docs\/agent-results\//.test(task.result_contract)) {
+    errors.push('result_contract must be under docs/agent-results/**');
+  }
+  if (task.result_contract && Array.isArray(task.allowed_changes) && !task.allowed_changes.includes(task.result_contract)) {
+    errors.push('allowed_changes must include result_contract');
+  }
+  if (Array.isArray(task.completion_commit_contract)) {
+    if (task.result_contract && !task.completion_commit_contract.includes(task.result_contract)) {
+      errors.push('completion_commit_contract must include result_contract');
+    }
+    if (!task.completion_commit_contract.includes(ACTIVE_TASK_JSON)) {
+      errors.push(`completion_commit_contract must include ${ACTIVE_TASK_JSON}`);
+    }
+    if (task.metadata?.companion === true && !task.completion_commit_contract.includes(ACTIVE_TASK_MD)) {
+      errors.push(`metadata.companion=true requires ${ACTIVE_TASK_MD} in completion_commit_contract`);
+    }
+  }
+
+  if (task.mode === 'TEST_ONLY' || task.mode === 'REVIEW_ONLY') {
+    if ((task.allowed_changes ?? []).some(item => !/^docs\/agent-results\//.test(item))) {
+      errors.push(`${task.mode} allowed_changes may only include docs/agent-results/**`);
+    }
+    if ((task.completion_commit_contract ?? []).some(item =>
+      !/^docs\/agent-results\//.test(item) && item !== ACTIVE_TASK_JSON && item !== ACTIVE_TASK_MD)) {
+      errors.push(`${task.mode} completion_commit_contract may only include result paths and ACTIVE task deletion`);
+    }
   }
 
   return {
