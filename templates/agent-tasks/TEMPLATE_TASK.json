@@ -6,7 +6,8 @@
   "objective": "Replace with the concrete task outcome.",
   "context": "Replace with only the context required to execute the task.",
   "allowed_changes": [
-    "REPLACE_WITH_ALLOWED_PATH"
+    "REPLACE_WITH_ALLOWED_PATH",
+    "docs/agent-results/TASK-REPLACE-ME-result.json"
   ],
   "forbidden_changes": [
     "secrets and credentials",
