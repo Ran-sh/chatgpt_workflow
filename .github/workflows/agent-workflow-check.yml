@@ -8,19 +8,31 @@ on:
 
 jobs:
   validate-agent-workflow:
-    name: Validate Agent Workflow Contracts
+    name: Validate Agent Workflow Contracts and CLI
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       - name: Validate schema JSON
         run: |
           node -e "JSON.parse(require('fs').readFileSync('schema/task-contract.schema.json','utf8'))"
           node -e "JSON.parse(require('fs').readFileSync('schema/result-contract.schema.json','utf8'))"
+          node -e "JSON.parse(require('fs').readFileSync('generator/install-manifest.schema.json','utf8'))"
 
-      - name: Validate canonical task contract
-        run: node validator/validate-contract.mjs task examples/contracts/task-contract.example.json
+      - name: Validate canonical contracts through CLI
+        run: |
+          node bin/agent-workflow.mjs validate task examples/contracts/task-contract.example.json
+          node bin/agent-workflow.mjs validate result examples/contracts/result-contract.example.json
 
-      - name: Validate canonical result contract
-        run: node validator/validate-contract.mjs result examples/contracts/result-contract.example.json
+      - name: Run CLI lifecycle tests
+        run: npm test
+
+      - name: Check version consistency
+        run: |
+          node -e "const fs=require('fs'); const v=fs.readFileSync('VERSION','utf8').trim(); const p=require('./package.json').version; if(v!==p){throw new Error('VERSION and package.json differ: '+v+' vs '+p)}"
