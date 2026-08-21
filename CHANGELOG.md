@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.8.0
+
+- Refocused the workflow on ChatGPT as the GitHub-side orchestrator and Codex/ZCode/Claude Code/DeepSeek Harness as interchangeable remote executors.
+- Added the explicit orchestrator/executor boundary and local-execution handoff rules.
+- Standardized the user-facing executor trigger to a short repository/branch/task-file handoff instead of duplicating task details in chat.
+- Changed generated queued tasks to use `source_commit: LATEST` by default, with explicit SHA pinning still available for immutable execution.
+- Added `metadata.prepared_from_commit` to preserve the task-preparation baseline for audit.
+- Added Result Contract v2 with `schema_version: 2`, second-precision timezone-aware execution timelines, and validator-owned `result_validation` evidence.
+- Added `validator --stamp`, which validates a draft result, writes PASS/command/validated_at/evidence itself, then validates the stamped final contract before writing it.
+- Preserved backward compatibility for legacy Result Contract v1 files without `schema_version`; historical results remain valid and do not need rewriting.
+- Added regression coverage for queued task source semantics, Result v2 stamping, timestamp precision/order, and legacy v1 compatibility.
+- Simplified the README around the actual user experience: ChatGPT changes GitHub, remote executor performs real local work, Result Contract returns to GitHub, ChatGPT continues.
+- Verified the full workflow end to end on `Ran-sh/dsh-vision`, including real local execution, Result v2 timeline evidence, validator stamping, legacy v1 validation, and ACTIVE task cleanup.
+
 ## 1.7.0
 
 - Added `agent-workflow task create` for non-interactive, machine-readable ACTIVE Task generation.
