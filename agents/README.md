@@ -2,7 +2,7 @@
 
 Agents are execution platforms, not workflow roles.
 
-The same task contract can be executed by different agents.
+The same machine-readable Task Contract can be executed by different agents.
 
 Examples:
 
@@ -11,11 +11,15 @@ Examples:
 - Claude Code
 - DeepSeek Harness
 
-Each adapter documents:
+Every compatible executor reads the same authoritative task path:
 
-- trigger method;
+`docs/agent-tasks/ACTIVE_TASK.json`
+
+Each adapter documents only platform integration concerns such as:
+
+- trigger/invocation method;
 - environment assumptions;
-- integration details;
-- result handoff format.
+- workspace/runtime details;
+- result handoff mechanics.
 
-Do not define task permissions here. Permissions come from ACTIVE tasks.
+Adapters must not redefine mode semantics, task permissions, writable scope, acceptance criteria, or result requirements. Those come only from the Task Contract and project workflow.
