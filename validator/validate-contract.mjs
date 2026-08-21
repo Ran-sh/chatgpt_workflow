@@ -15,6 +15,8 @@ const RESULT_KEYS = new Set([
   'changed_files', 'tests', 'blockers', 'result_path', 'notes'
 ]);
 const TEST_KEYS = new Set(['name', 'status', 'evidence']);
+const ACTIVE_TASK_JSON = 'docs/agent-tasks/ACTIVE_TASK.json';
+const ACTIVE_TASK_MD = 'docs/agent-tasks/ACTIVE_TASK.md';
 
 function fail(message) {
   console.error(`INVALID: ${message}`);
@@ -70,6 +72,23 @@ function validateTask(value) {
   validateString(value.result_contract, 'result_contract', errors);
   validateStringArray(value.completion_commit_contract, 'completion_commit_contract', errors);
 
+  if (typeof value.result_contract === 'string' && !/^docs\/agent-results\//.test(value.result_contract)) {
+    errors.push(`result_contract must be under docs/agent-results/**: ${value.result_contract}`);
+  }
+
+  if (Array.isArray(value.allowed_changes) && typeof value.result_contract === 'string' && !value.allowed_changes.includes(value.result_contract)) {
+    errors.push('allowed_changes must include result_contract');
+  }
+
+  if (Array.isArray(value.completion_commit_contract) && typeof value.result_contract === 'string') {
+    if (!value.completion_commit_contract.includes(value.result_contract)) {
+      errors.push('completion_commit_contract must include result_contract');
+    }
+    if (!value.completion_commit_contract.includes(ACTIVE_TASK_JSON)) {
+      errors.push(`completion_commit_contract must include ${ACTIVE_TASK_JSON}`);
+    }
+  }
+
   if (value.delete_active_task_on_completion !== true) errors.push('delete_active_task_on_completion must be true');
 
   if (value.metadata !== undefined) {
@@ -85,6 +104,11 @@ function validateTask(value) {
     for (const item of value.allowed_changes ?? []) {
       if (typeof item === 'string' && !/^docs\/agent-results\//.test(item)) {
         errors.push(`${value.mode} allowed_changes may only include docs/agent-results/**: ${item}`);
+      }
+    }
+    for (const item of value.completion_commit_contract ?? []) {
+      if (typeof item === 'string' && !/^docs\/agent-results\//.test(item) && item !== ACTIVE_TASK_JSON && item !== ACTIVE_TASK_MD) {
+        errors.push(`${value.mode} completion_commit_contract may only include result paths and ACTIVE task deletion: ${item}`);
       }
     }
   }
@@ -107,6 +131,9 @@ function validateResult(value) {
   validateStringArray(value.changed_files, 'changed_files', errors);
   validateStringArray(value.blockers, 'blockers', errors);
   validateString(value.result_path, 'result_path', errors);
+  if (typeof value.result_path === 'string' && !/^docs\/agent-results\//.test(value.result_path)) {
+    errors.push(`result_path must be under docs/agent-results/**: ${value.result_path}`);
+  }
   if (value.notes !== undefined) validateStringArray(value.notes, 'notes', errors);
 
   if (!Array.isArray(value.tests)) errors.push('tests must be an array');
