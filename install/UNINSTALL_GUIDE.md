@@ -10,7 +10,7 @@ Expected manifest:
 
 `docs/.agent-workflow-install.json`
 
-The v1.6+ manifest records:
+The manifest records:
 
 - `source_repository`
 - `workflow_version`
@@ -24,7 +24,7 @@ Only `generated_files` are automatically eligible for file removal. A `generated
 
 Before uninstalling:
 
-1. Confirm there is no active task still in progress.
+1. Confirm neither `docs/agent-tasks/ACTIVE_TASK.json` nor `docs/agent-tasks/ACTIVE_TASK.md` exists. If either exists, stop with `BLOCKED` until the task is completed or intentionally abandoned.
 2. Archive or explicitly retain any result reports the project wants to preserve.
 3. Confirm the working tree has no unrelated user changes that would be affected by the release operation.
 4. Read `docs/.agent-workflow-install.json` and verify `source_repository` identifies `Ran-sh/chatgpt_workflow`.
@@ -35,18 +35,19 @@ If the manifest is missing, corrupt, ambiguous, unsafe, or does not clearly iden
 ## Removal procedure
 
 1. Remove only manifest-owned `generated_files`.
-2. Remove an ACTIVE task only after confirming the task is finished or intentionally abandoned.
-3. Remove only manifest-owned `generated_dirs` that are empty after file removal.
-4. Never delete project source, existing tests, product configuration, normal CI, release logic, or unrelated project documentation.
-5. Remove `docs/.agent-workflow-install.json` last.
-6. Run the project's normal release validation after removal.
-7. Commit through the repository's normal branch/PR policy.
+2. Remove only manifest-owned `generated_dirs` that are empty after file removal.
+3. Never delete project source, existing tests, product configuration, normal CI, release logic, or unrelated project documentation.
+4. Remove `docs/.agent-workflow-install.json` last.
+5. Run the project's normal release validation after removal.
+6. Commit through the repository's normal branch/PR policy.
 
-For v1.6+ CLI installations, the canonical command is:
+For CLI installations, the canonical command is:
 
 ```bash
 agent-workflow uninstall .
 ```
+
+The CLI performs the ACTIVE-task check and verifies the manifest source before deletion.
 
 ## Keep vs remove
 
