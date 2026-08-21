@@ -66,13 +66,18 @@ test('CLI installs, generates/validates a task, and uninstalls without touching 
     assert.equal(fs.existsSync(companionPath), true);
 
     const active = JSON.parse(fs.readFileSync(activePath, 'utf8'));
+    const resultPath = 'docs/agent-results/release-retest-001-result.json';
     assert.equal(active.id, 'release-retest-001');
     assert.equal(active.mode, 'TEST_ONLY');
     assert.equal(active.source_branch, 'main');
     assert.equal(active.source_commit, 'abc123');
-    assert.deepEqual(active.allowed_changes, ['docs/agent-results/release-retest-001-result.json']);
+    assert.deepEqual(active.allowed_changes, [resultPath]);
+    assert.ok(active.completion_commit_contract.includes(resultPath));
+    assert.ok(active.completion_commit_contract.includes('docs/agent-tasks/ACTIVE_TASK.json'));
+    assert.ok(active.completion_commit_contract.includes('docs/agent-tasks/ACTIVE_TASK.md'));
     assert.equal(active.metadata.executor, 'ANY');
     assert.equal(active.metadata.generator, 'agent-workflow@1.7.0');
+    assert.equal(active.metadata.companion, true);
 
     const taskValidation = run(['validate', 'task', activePath]);
     assert.equal(taskValidation.status, 0, taskValidation.stderr || taskValidation.stdout);
@@ -148,7 +153,7 @@ test('uninstall preserves pre-existing directories and unrelated files', () => {
   }
 });
 
-test('IMPLEMENT task generation requires explicit writable scope', () => {
+test('IMPLEMENT task generation requires explicit writable scope and always includes result contract', () => {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-workflow-implement-'));
   try {
     const install = run(['install', temp]);
@@ -184,10 +189,44 @@ test('IMPLEMENT task generation requires explicit writable scope', () => {
 
     const activePath = path.join(temp, 'docs', 'agent-tasks', 'ACTIVE_TASK.json');
     const active = JSON.parse(fs.readFileSync(activePath, 'utf8'));
-    assert.deepEqual(active.allowed_changes, ['src/**', 'test/**']);
+    const resultPath = 'docs/agent-results/implement-001-result.json';
+    assert.deepEqual(active.allowed_changes, ['src/**', 'test/**', resultPath]);
+    assert.ok(active.completion_commit_contract.includes(resultPath));
+    assert.ok(active.completion_commit_contract.includes('docs/agent-tasks/ACTIVE_TASK.json'));
     assert.ok(active.forbidden_changes.includes('secrets and credentials'));
 
+    const validation = run(['validate', 'task', activePath]);
+    assert.equal(validation.status, 0, validation.stderr || validation.stdout);
+
     removeActiveTask(temp);
+    const uninstall = run(['uninstall', temp]);
+    assert.equal(uninstall.status, 0, uninstall.stderr || uninstall.stdout);
+  } finally {
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test('read-only modes reject non-result writable scope', () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-workflow-review-'));
+  try {
+    const install = run(['install', temp]);
+    assert.equal(install.status, 0, install.stderr || install.stdout);
+
+    const create = run([
+      'task', 'create',
+      '--target', temp,
+      '--mode', 'REVIEW_ONLY',
+      '--source-branch', 'main',
+      '--source-commit', 'abc123',
+      '--objective', 'Review the requested area.',
+      '--allow', 'src/**',
+      '--validate', 'inspect relevant files',
+      '--accept', 'findings are reported'
+    ]);
+    assert.notEqual(create.status, 0);
+    assert.match(create.stderr, /REVIEW_ONLY --allow paths must be under docs\/agent-results\//);
+    assert.equal(fs.existsSync(path.join(temp, 'docs', 'agent-tasks', 'ACTIVE_TASK.json')), false);
+
     const uninstall = run(['uninstall', temp]);
     assert.equal(uninstall.status, 0, uninstall.stderr || uninstall.stdout);
   } finally {
