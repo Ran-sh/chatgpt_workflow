@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const cli = path.join(root, 'bin', 'agent-workflow.mjs');
+const expectedVersion = fs.readFileSync(path.join(root, 'VERSION'), 'utf8').trim();
 
 function run(args, cwd = root) {
   return spawnSync(process.execPath, [cli, ...args], {
@@ -39,7 +40,7 @@ test('CLI installs, generates/validates a task, and uninstalls without touching 
 
     const manifestPath = path.join(temp, 'docs', '.agent-workflow-install.json');
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-    assert.equal(manifest.workflow_version, '1.7.0');
+    assert.equal(manifest.workflow_version, expectedVersion);
     assert.equal(manifest.project_facts.package_manager, 'pnpm');
     assert.equal(manifest.project_facts.build_command, 'pnpm run build');
     assert.equal(manifest.project_facts.test_command, 'pnpm test');
@@ -76,7 +77,7 @@ test('CLI installs, generates/validates a task, and uninstalls without touching 
     assert.ok(active.completion_commit_contract.includes('docs/agent-tasks/ACTIVE_TASK.json'));
     assert.ok(active.completion_commit_contract.includes('docs/agent-tasks/ACTIVE_TASK.md'));
     assert.equal(active.metadata.executor, 'ANY');
-    assert.equal(active.metadata.generator, 'agent-workflow@1.7.0');
+    assert.equal(active.metadata.generator, `agent-workflow@${expectedVersion}`);
     assert.equal(active.metadata.companion, true);
 
     const taskValidation = run(['validate', 'task', activePath]);
