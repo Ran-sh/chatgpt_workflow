@@ -27,13 +27,15 @@ agent-workflow task create --mode <MODE> --objective <TEXT> --validate <CHECK> -
 The generator:
 
 1. requires an installed project workflow;
-2. refuses to replace an existing ACTIVE task;
-3. resolves source branch/commit from explicit flags or local Git facts;
-4. requires explicit writable scope for `IMPLEMENT`;
-5. restricts default `TEST_ONLY` / `REVIEW_ONLY` writable scope to the Result Contract;
-6. validates the generated Task Contract before activation;
-7. writes `docs/agent-tasks/ACTIVE_TASK.json` as the source of truth;
-8. optionally writes non-authoritative `ACTIVE_TASK.md` with `--companion`.
+2. always targets `docs/agent-tasks/ACTIVE_TASK.json`;
+3. refuses to replace an existing ACTIVE task or companion;
+4. resolves source branch/commit from explicit flags or local Git facts;
+5. requires explicit writable scope for `IMPLEMENT`;
+6. always includes the Result Contract itself in `allowed_changes`;
+7. machine-enforces `TEST_ONLY` / `REVIEW_ONLY` writable scope under `docs/agent-results/**`;
+8. keeps every Result Contract under `docs/agent-results/**`;
+9. validates the generated Task Contract before activation;
+10. optionally writes non-authoritative `ACTIVE_TASK.md` with `--companion` and records its required cleanup in the completion contract.
 
 ## Validate
 
@@ -44,13 +46,13 @@ agent-workflow validate result <file>
 
 Validation uses the canonical packaged validator and returns its exit status.
 
-Task permissions remain independent of the chosen executor.
+Task permissions remain independent of the chosen executor. The validator also enforces result-path placement, read-only mode scope, Result Contract write permission, and completion-contract invariants.
 
 ## Execute
 
 Any compatible executor reads the same `ACTIVE_TASK.json`. It must obey the contract's mode, scope, source revision, validation requirements, acceptance criteria, result contract, and completion commit contract.
 
-When complete, the executor writes the Result Contract/report and removes the ACTIVE task only if the contract requires deletion.
+When complete, the executor writes the Result Contract/report and removes `ACTIVE_TASK.json`; it also removes `ACTIVE_TASK.md` when present and included in the completion contract.
 
 ## Uninstall / release cleanup
 
