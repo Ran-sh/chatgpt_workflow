@@ -1,0 +1,18 @@
+name: Agent Workflow Check
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  validate-agent-workflow:
+    name: Validate Agent Workflow Contract
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate workflow structure
+        run: |
+          echo "Validate ACTIVE_TASK schema, task contract, and workflow metadata"
+          echo "Implementation hook for future schema validator"
