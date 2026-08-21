@@ -1,16 +1,62 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Agent Task Contract",
+  "$id": "https://github.com/Ran-sh/chatgpt_workflow/schema/task-contract.schema.json",
+  "title": "Agent Workflow Task Contract",
   "type": "object",
-  "required": ["id", "mode", "objective", "source_commit", "validation"],
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "mode",
+    "source_branch",
+    "source_commit",
+    "objective",
+    "context",
+    "allowed_changes",
+    "forbidden_changes",
+    "validation",
+    "acceptance_criteria",
+    "result_contract",
+    "completion_commit_contract",
+    "delete_active_task_on_completion"
+  ],
   "properties": {
-    "id": {"type": "string"},
-    "mode": {"enum": ["IMPLEMENT", "TEST_ONLY", "REVIEW_ONLY"]},
-    "source_commit": {"type": "string"},
-    "objective": {"type": "string"},
-    "allowed_changes": {"type": "array", "items": {"type": "string"}},
-    "forbidden_changes": {"type": "array", "items": {"type": "string"}},
-    "validation": {"type": "array", "items": {"type": "string"}},
-    "result_contract": {"type": "string"}
+    "id": { "type": "string", "minLength": 1 },
+    "mode": { "type": "string", "enum": ["IMPLEMENT", "TEST_ONLY", "REVIEW_ONLY"] },
+    "source_branch": { "type": "string", "minLength": 1 },
+    "source_commit": { "type": "string", "minLength": 1 },
+    "objective": { "type": "string", "minLength": 1 },
+    "context": { "type": "string" },
+    "allowed_changes": {
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true
+    },
+    "forbidden_changes": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "validation": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1
+    },
+    "acceptance_criteria": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1
+    },
+    "result_contract": { "type": "string", "minLength": 1 },
+    "completion_commit_contract": {
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true
+    },
+    "delete_active_task_on_completion": { "type": "boolean", "const": true },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": { "type": ["string", "number", "boolean", "null"] }
+    }
   }
 }
