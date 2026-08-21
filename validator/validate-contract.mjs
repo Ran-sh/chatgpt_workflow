@@ -97,6 +97,9 @@ function validateTask(value) {
       for (const [key, item] of Object.entries(value.metadata)) {
         if (!isPrimitive(item)) errors.push(`metadata.${key} must be string, number, boolean, or null`);
       }
+      if (value.metadata.companion === true && Array.isArray(value.completion_commit_contract) && !value.completion_commit_contract.includes(ACTIVE_TASK_MD)) {
+        errors.push(`metadata.companion=true requires ${ACTIVE_TASK_MD} in completion_commit_contract`);
+      }
     }
   }
 
