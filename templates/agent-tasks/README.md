@@ -5,10 +5,10 @@ Task Contracts define work. They do not define which executor must perform it.
 Supported modes:
 
 - `IMPLEMENT` — code or documentation changes explicitly allowed by the task scope.
-- `TEST_ONLY` — validation and reporting only unless the contract explicitly authorizes another path.
-- `REVIEW_ONLY` — inspection, analysis, and reporting only unless the contract explicitly authorizes another path.
+- `TEST_ONLY` — validation and reporting only; writable paths are limited to `docs/agent-results/**`.
+- `REVIEW_ONLY` — inspection, analysis, and reporting only; writable paths are limited to `docs/agent-results/**`.
 
-Any compatible executor (Codex, ZCode, Claude Code, DeepSeek Harness, or another platform) may execute any mode if the Task Contract authorizes it.
+Any compatible executor (Codex, ZCode, Claude Code, DeepSeek Harness, or another platform) may execute any mode if the Task Contract authorizes it. Executor choice never changes mode semantics.
 
 ## Active task
 
@@ -37,7 +37,7 @@ agent-workflow task create \
 
 The generator attempts to read the current Git branch and exact commit. They can be supplied explicitly with `--source-branch` and `--source-commit`.
 
-For `IMPLEMENT`, at least one `--allow` path is required. For `TEST_ONLY` and `REVIEW_ONLY`, the default writable path is the generated Result Contract only.
+For `IMPLEMENT`, at least one `--allow` path is required. `TEST_ONLY` and `REVIEW_ONLY` are machine-enforced as result-only write modes under `docs/agent-results/**`.
 
 The generator refuses to replace an existing ACTIVE task and validates the generated JSON before making it active.
 
