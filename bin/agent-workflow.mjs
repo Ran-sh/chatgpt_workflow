@@ -10,6 +10,7 @@ const packageRoot = path.resolve(here, '..');
 const manifestRelativePath = 'docs/.agent-workflow-install.json';
 const activeTaskRelativePath = 'docs/agent-tasks/ACTIVE_TASK.json';
 const activeTaskCompanionRelativePath = 'docs/agent-tasks/ACTIVE_TASK.md';
+const resultDirectoryPrefix = 'docs/agent-results/';
 const validModes = new Set(['IMPLEMENT', 'TEST_ONLY', 'REVIEW_ONLY']);
 
 function fail(message, code = 1) {
@@ -27,10 +28,8 @@ function readJson(file) {
 
 function ensureRelativeSafe(rel) {
   if (!rel || path.isAbsolute(rel)) fail(`unsafe managed path: ${rel}`);
-  const normalized = path.normalize(rel);
-  if (normalized === '..' || normalized.startsWith(`..${path.sep}`)) {
-    fail(`unsafe managed path: ${rel}`);
-  }
+  const normalized = path.normalize(rel).split(path.sep).join('/');
+  if (normalized === '..' || normalized.startsWith('../')) fail(`unsafe managed path: ${rel}`);
   return normalized;
 }
 
@@ -121,10 +120,10 @@ function copyPlan(facts) {
 
 function parentDirectories(rel) {
   const dirs = [];
-  let current = path.dirname(rel);
+  let current = path.posix.dirname(rel);
   while (current && current !== '.') {
     dirs.push(ensureRelativeSafe(current));
-    current = path.dirname(current);
+    current = path.posix.dirname(current);
   }
   return dirs;
 }
@@ -147,7 +146,7 @@ function install(targetArg) {
   const allDestinations = [...plan.map((item) => item.destination), manifestRelativePath];
   const generatedDirs = unique(allDestinations.flatMap(parentDirectories))
     .filter((rel) => !fs.existsSync(path.join(target, rel)))
-    .sort((a, b) => a.split(path.sep).length - b.split(path.sep).length);
+    .sort((a, b) => a.split('/').length - b.split('/').length);
 
   for (const item of plan) {
     const destination = path.join(target, item.destination);
@@ -223,8 +222,7 @@ function parseTaskOptions(args) {
     ['--source-commit', 'sourceCommit'],
     ['--objective', 'objective'],
     ['--context', 'context'],
-    ['--result', 'result'],
-    ['--output', 'output']
+    ['--result', 'result']
   ]);
   const repeated = new Map([
     ['--allow', 'allow'],
@@ -278,33 +276,44 @@ function taskCreate(args) {
   if (!options.accept.length) fail('task create requires at least one --accept');
 
   const id = options.id ?? generatedTaskId();
-  const outputRel = ensureRelativeSafe(options.output ?? activeTaskRelativePath);
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(id)) fail('task id may contain only letters, numbers, dot, underscore, and hyphen');
+
+  const outputRel = activeTaskRelativePath;
   const output = path.join(target, outputRel);
   const companionRel = activeTaskCompanionRelativePath;
   const companion = path.join(target, companionRel);
 
-  if (fs.existsSync(path.join(target, activeTaskRelativePath)) || fs.existsSync(path.join(target, activeTaskCompanionRelativePath))) {
+  if (fs.existsSync(output) || fs.existsSync(companion)) {
     fail('an ACTIVE task already exists; complete or intentionally remove it before creating another');
   }
-  if (fs.existsSync(output)) fail(`refusing to overwrite existing task file: ${outputRel}`);
-  if (options.companion && fs.existsSync(companion)) fail(`refusing to overwrite existing task companion: ${companionRel}`);
 
   const sourceBranch = options.sourceBranch ?? gitValue(target, ['rev-parse', '--abbrev-ref', 'HEAD']);
   const sourceCommit = options.sourceCommit ?? gitValue(target, ['rev-parse', 'HEAD']);
   if (!sourceBranch || sourceBranch === 'HEAD') fail('cannot determine source branch; pass --source-branch explicitly');
   if (!sourceCommit) fail('cannot determine source commit; pass --source-commit explicitly');
 
-  const resultContract = ensureRelativeSafe(options.result ?? `docs/agent-results/${id}-result.json`);
-  let allowedChanges = unique(options.allow);
-  if (!allowedChanges.length && (mode === 'TEST_ONLY' || mode === 'REVIEW_ONLY')) allowedChanges = [resultContract];
-  if (!allowedChanges.length) fail('IMPLEMENT tasks require at least one --allow path');
+  const resultContract = ensureRelativeSafe(options.result ?? `${resultDirectoryPrefix}${id}-result.json`);
+  if (!resultContract.startsWith(resultDirectoryPrefix)) fail(`result contract must be under ${resultDirectoryPrefix}`);
+
+  const explicitAllowed = unique(options.allow);
+  if (mode === 'IMPLEMENT' && !explicitAllowed.length) fail('IMPLEMENT tasks require at least one --allow path');
+  if (mode === 'TEST_ONLY' || mode === 'REVIEW_ONLY') {
+    for (const item of explicitAllowed) {
+      if (!item.startsWith(resultDirectoryPrefix)) fail(`${mode} --allow paths must be under ${resultDirectoryPrefix}`);
+    }
+  }
+  const allowedChanges = unique([...explicitAllowed, resultContract]);
 
   const forbiddenChanges = unique(options.forbid.length ? options.forbid : defaultForbidden(mode));
-  const completionContract = unique(options.complete.length
-    ? options.complete
-    : [...allowedChanges, resultContract, outputRel]);
-  const version = readText(path.join(packageRoot, 'VERSION')).trim();
+  let completionContract = unique(options.complete.length ? options.complete : allowedChanges);
+  completionContract = unique([
+    ...completionContract,
+    resultContract,
+    activeTaskRelativePath,
+    ...(options.companion ? [activeTaskCompanionRelativePath] : [])
+  ]);
 
+  const version = readText(path.join(packageRoot, 'VERSION')).trim();
   const contract = {
     id,
     mode,
@@ -322,7 +331,8 @@ function taskCreate(args) {
     metadata: {
       executor: 'ANY',
       generator: `agent-workflow@${version}`,
-      generated_at: new Date().toISOString()
+      generated_at: new Date().toISOString(),
+      companion: options.companion
     }
   };
 
@@ -380,7 +390,7 @@ function uninstall(targetArg) {
   }
 
   const dirs = Array.isArray(manifest.generated_dirs) ? manifest.generated_dirs.map(ensureRelativeSafe) : [];
-  dirs.sort((a, b) => b.split(path.sep).length - a.split(path.sep).length);
+  dirs.sort((a, b) => b.split('/').length - a.split('/').length);
   for (const rel of dirs) {
     const absolute = path.join(target, rel);
     if (fs.existsSync(absolute) && fs.statSync(absolute).isDirectory() && fs.readdirSync(absolute).length === 0) fs.rmdirSync(absolute);
@@ -391,7 +401,7 @@ function uninstall(targetArg) {
 }
 
 function help() {
-  console.log(`agent-workflow\n\nUsage:\n  agent-workflow install [target]\n  agent-workflow task create --mode <MODE> --objective <TEXT> --validate <CHECK> --accept <CRITERION> [options]\n  agent-workflow validate task <file>\n  agent-workflow validate result <file>\n  agent-workflow uninstall [target]\n  agent-workflow --version\n\nTask create options:\n  --target <dir>\n  --id <task-id>\n  --source-branch <branch>\n  --source-commit <sha-or-symbolic-ref>\n  --context <text>\n  --allow <path>          repeatable; required for IMPLEMENT\n  --forbid <path-or-rule> repeatable; safe defaults used when omitted\n  --validate <check>      repeatable; at least one required\n  --accept <criterion>    repeatable; at least one required\n  --result <path>\n  --complete <path>       repeatable completion commit contract\n  --output <relative-path>\n  --companion             also write non-authoritative ACTIVE_TASK.md\n\nThe installer never creates an ACTIVE task. Task generation refuses to replace an existing ACTIVE task. Uninstall refuses to run while an ACTIVE task exists.`);
+  console.log(`agent-workflow\n\nUsage:\n  agent-workflow install [target]\n  agent-workflow task create --mode <MODE> --objective <TEXT> --validate <CHECK> --accept <CRITERION> [options]\n  agent-workflow validate task <file>\n  agent-workflow validate result <file>\n  agent-workflow uninstall [target]\n  agent-workflow --version\n\nTask create options:\n  --target <dir>\n  --id <task-id>\n  --source-branch <branch>\n  --source-commit <sha-or-symbolic-ref>\n  --context <text>\n  --allow <path>          repeatable; required for IMPLEMENT; result-only for read-only modes\n  --forbid <path-or-rule> repeatable; safe defaults used when omitted\n  --validate <check>      repeatable; at least one required\n  --accept <criterion>    repeatable; at least one required\n  --result <path>         must be under docs/agent-results/\n  --complete <path>       repeatable completion commit additions\n  --companion             also write non-authoritative ACTIVE_TASK.md\n\nACTIVE tasks always use docs/agent-tasks/ACTIVE_TASK.json. The installer never creates an ACTIVE task. Task generation refuses to replace an existing ACTIVE task. Uninstall refuses to run while an ACTIVE task exists.`);
 }
 
 const args = process.argv.slice(2);
