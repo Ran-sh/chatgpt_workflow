@@ -77,19 +77,40 @@ Never convert an unexecuted or blocked check into PASS.
 1. Read this workflow.
 2. Read and validate `docs/agent-tasks/ACTIVE_TASK.json`.
 3. Confirm source revision and worktree safety.
-4. Execute only the authorized scope in the real environment.
-5. Run every required validation or record why it is `BLOCKED`, `SKIP`, or `NOT RUN`.
-6. Write the required Result Contract/report.
-7. Verify completion against `acceptance_criteria`.
-8. When completion is real and `delete_active_task_on_completion` is true, remove `ACTIVE_TASK.json` and its companion when required.
-9. Commit/push only paths allowed by `completion_commit_contract` and repository policy.
-10. Stop. Do not self-assign follow-up work.
+4. Record `timeline.started_at` at second precision with timezone when real task execution begins.
+5. Execute only the authorized scope in the real environment.
+6. Run every required validation or record why it is `BLOCKED`, `SKIP`, or `NOT RUN`.
+7. Finish writing the Result Contract and record `timeline.completed_at` at second precision with timezone.
+8. Run the installed Result validator with `--stamp` so the validator itself writes `result_validation` evidence:
+
+   ```bash
+   node .agent-workflow/validator/validate-contract.mjs result <result-json> --stamp
+   ```
+
+9. Verify completion against `acceptance_criteria`. A Result Contract without stamped validator evidence is incomplete.
+10. When completion is real and `delete_active_task_on_completion` is true, remove `ACTIVE_TASK.json` and its companion when required.
+11. Commit/push only paths allowed by `completion_commit_contract` and repository policy.
+12. Stop. Do not self-assign follow-up work.
 
 `completion_commit_contract` must include the Result Contract and `docs/agent-tasks/ACTIVE_TASK.json`. If task metadata says a human companion was generated, include `docs/agent-tasks/ACTIVE_TASK.md` too.
 
 ## 8. Result handoff
 
 The Result Contract must identify the task/source revision, execution status, changed files, validation outcomes, blockers, and result path required by the project schema.
+
+It must also include an auditable timeline:
+
+```text
+timeline.started_at
+  -> local execution and required checks
+  -> timeline.completed_at
+  -> validator --stamp
+  -> result_validation.validated_at
+```
+
+All three timestamps use ISO 8601 with year, month, day, hour, minute, second, and timezone, for example `2026-08-21T15:12:04+08:00`. Milliseconds are not used.
+
+`result_validation` is validator-owned evidence. Executors must not manually claim validator success. The validator stamps `status: PASS`, the canonical command, the validation timestamp, and success evidence only after the draft Result Contract passes validation; the stamped final document is then validated again before it is written.
 
 After execution, the user may simply tell ChatGPT that the executor is finished. ChatGPT should inspect GitHub directly, evaluate the result, and decide the next action.
 

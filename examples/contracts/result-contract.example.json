@@ -4,6 +4,10 @@
   "result_commit": null,
   "status": "PASS",
   "summary": "Canonical example result for CI validation.",
+  "timeline": {
+    "started_at": "2026-08-21T15:12:04+08:00",
+    "completed_at": "2026-08-21T15:13:41+08:00"
+  },
   "changed_files": [
     "docs/agent-results/example-test-001-result.json"
   ],
@@ -16,5 +20,11 @@
   ],
   "blockers": [],
   "result_path": "docs/agent-results/example-test-001-result.json",
+  "result_validation": {
+    "status": "PASS",
+    "validator": "node .agent-workflow/validator/validate-contract.mjs result docs/agent-results/example-test-001-result.json --stamp",
+    "validated_at": "2026-08-21T15:13:42+08:00",
+    "evidence": "Exit 0: VALID RESULT CONTRACT: docs/agent-results/example-test-001-result.json"
+  },
   "notes": []
 }

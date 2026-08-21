@@ -84,7 +84,15 @@ Install the latest stable workflow from `Ran-sh/chatgpt_workflow` into this repo
 - `TEST_ONLY`
 - `REVIEW_ONLY`
 
-验证：
+Result Contract 记录秒级、带时区的执行时间线。最终结果必须由 validator 自己盖章：
+
+```bash
+node .agent-workflow/validator/validate-contract.mjs result <result-file> --stamp
+```
+
+`--stamp` 成功后会写入 `result_validation` 的 PASS、验证时间、命令和证据。
+
+普通验证：
 
 ```bash
 agent-workflow validate task docs/agent-tasks/ACTIVE_TASK.json
