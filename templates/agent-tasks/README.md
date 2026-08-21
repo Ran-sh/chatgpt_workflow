@@ -35,7 +35,11 @@ agent-workflow task create \
   --companion
 ```
 
-The generator attempts to read the current Git branch and exact commit. They can be supplied explicitly with `--source-branch` and `--source-commit`.
+The generator attempts to read the current Git branch. Unless `--source-commit` is supplied explicitly, it writes `source_commit: LATEST`, meaning the executor resolves the current tip of `source_branch` after pulling/fetching and records the exact SHA used in the Result Contract.
+
+This default is deliberate: the ACTIVE task is normally committed to the same branch, so pinning the task to the pre-task HEAD would become stale as soon as the task itself is committed. Use `--source-commit <SHA>` only when execution must be intentionally pinned to an immutable revision.
+
+When a local Git HEAD is available, the generator records it as `metadata.prepared_from_commit` for audit without treating it as the execution pin.
 
 For `IMPLEMENT`, at least one `--allow` path is required. `TEST_ONLY` and `REVIEW_ONLY` are machine-enforced as result-only write modes under `docs/agent-results/**`.
 

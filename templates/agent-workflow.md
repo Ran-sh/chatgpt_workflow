@@ -48,6 +48,10 @@ The Task Contract, not the executor, determines scope.
 
 Before executing, resolve `source_branch` and `source_commit` from the Task Contract and confirm the working copy matches the requested revision.
 
+`source_commit: LATEST` means: after fetching/pulling according to repository policy, resolve and execute the current tip of `source_branch`, and record the exact SHA actually used in the Result Contract. This is the normal value for a queued task committed to the same branch because the task commit itself moves the branch tip.
+
+Use an explicit commit SHA only when the orchestrator intentionally wants execution pinned to that immutable revision. Other explicitly documented symbolic values may be used when the project workflow defines their resolution semantics.
+
 Do not silently reset, clean, stash, overwrite, or discard unrelated user changes.
 
 ## 5. Scope and safety

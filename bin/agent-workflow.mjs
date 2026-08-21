@@ -288,9 +288,9 @@ function taskCreate(args) {
   }
 
   const sourceBranch = options.sourceBranch ?? gitValue(target, ['rev-parse', '--abbrev-ref', 'HEAD']);
-  const sourceCommit = options.sourceCommit ?? gitValue(target, ['rev-parse', 'HEAD']);
+  const preparedFromCommit = gitValue(target, ['rev-parse', 'HEAD']);
+  const sourceCommit = options.sourceCommit ?? 'LATEST';
   if (!sourceBranch || sourceBranch === 'HEAD') fail('cannot determine source branch; pass --source-branch explicitly');
-  if (!sourceCommit) fail('cannot determine source commit; pass --source-commit explicitly');
 
   const resultContract = ensureRelativeSafe(options.result ?? `${resultDirectoryPrefix}${id}-result.json`);
   if (!resultContract.startsWith(resultDirectoryPrefix)) fail(`result contract must be under ${resultDirectoryPrefix}`);
@@ -332,7 +332,8 @@ function taskCreate(args) {
       executor: 'ANY',
       generator: `agent-workflow@${version}`,
       generated_at: new Date().toISOString(),
-      companion: options.companion
+      companion: options.companion,
+      prepared_from_commit: preparedFromCommit
     }
   };
 
@@ -401,7 +402,7 @@ function uninstall(targetArg) {
 }
 
 function help() {
-  console.log(`agent-workflow\n\nUsage:\n  agent-workflow install [target]\n  agent-workflow task create --mode <MODE> --objective <TEXT> --validate <CHECK> --accept <CRITERION> [options]\n  agent-workflow validate task <file>\n  agent-workflow validate result <file>\n  agent-workflow uninstall [target]\n  agent-workflow --version\n\nTask create options:\n  --target <dir>\n  --id <task-id>\n  --source-branch <branch>\n  --source-commit <sha-or-symbolic-ref>\n  --context <text>\n  --allow <path>          repeatable; required for IMPLEMENT; result-only for read-only modes\n  --forbid <path-or-rule> repeatable; safe defaults used when omitted\n  --validate <check>      repeatable; at least one required\n  --accept <criterion>    repeatable; at least one required\n  --result <path>         must be under docs/agent-results/\n  --complete <path>       repeatable completion commit additions\n  --companion             also write non-authoritative ACTIVE_TASK.md\n\nACTIVE tasks always use docs/agent-tasks/ACTIVE_TASK.json. The installer never creates an ACTIVE task. Task generation refuses to replace an existing ACTIVE task. Uninstall refuses to run while an ACTIVE task exists.`);
+  console.log(`agent-workflow\n\nUsage:\n  agent-workflow install [target]\n  agent-workflow task create --mode <MODE> --objective <TEXT> --validate <CHECK> --accept <CRITERION> [options]\n  agent-workflow validate task <file>\n  agent-workflow validate result <file>\n  agent-workflow uninstall [target]\n  agent-workflow --version\n\nTask create options:\n  --target <dir>\n  --id <task-id>\n  --source-branch <branch>\n  --source-commit <sha-or-symbolic-ref>  defaults to LATEST on source_branch\n  --context <text>\n  --allow <path>          repeatable; required for IMPLEMENT; result-only for read-only modes\n  --forbid <path-or-rule> repeatable; safe defaults used when omitted\n  --validate <check>      repeatable; at least one required\n  --accept <criterion>    repeatable; at least one required\n  --result <path>         must be under docs/agent-results/\n  --complete <path>       repeatable completion commit additions\n  --companion             also write non-authoritative ACTIVE_TASK.md\n\nACTIVE tasks always use docs/agent-tasks/ACTIVE_TASK.json. The installer never creates an ACTIVE task. Task generation refuses to replace an existing ACTIVE task. Uninstall refuses to run while an ACTIVE task exists.`);
 }
 
 const args = process.argv.slice(2);
