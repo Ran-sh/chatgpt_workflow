@@ -37,6 +37,7 @@ test('CLI installs, validates, and uninstalls without touching project files', (
     assert.equal(manifest.project_facts.package_manager, 'pnpm');
     assert.equal(manifest.project_facts.build_command, 'pnpm run build');
     assert.equal(manifest.project_facts.test_command, 'pnpm test');
+    assert.ok(Array.isArray(manifest.generated_dirs));
 
     const taskValidation = run([
       'validate',
@@ -72,6 +73,27 @@ test('installer refuses to overwrite pre-existing managed paths', () => {
     assert.notEqual(install.status, 0);
     assert.match(install.stderr, /refusing to overwrite pre-existing files/);
     assert.equal(fs.readFileSync(path.join(temp, 'docs', 'agent-workflow.md'), 'utf8'), 'existing\n');
+  } finally {
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test('uninstall preserves pre-existing directories and unrelated files', () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-workflow-owned-dirs-'));
+  try {
+    fs.mkdirSync(path.join(temp, 'docs'), { recursive: true });
+    fs.writeFileSync(path.join(temp, 'docs', 'product-notes.md'), 'keep me\n');
+
+    const install = run(['install', temp]);
+    assert.equal(install.status, 0, install.stderr || install.stdout);
+
+    const manifest = JSON.parse(fs.readFileSync(path.join(temp, 'docs', '.agent-workflow-install.json'), 'utf8'));
+    assert.equal(manifest.generated_dirs.includes('docs'), false);
+
+    const uninstall = run(['uninstall', temp]);
+    assert.equal(uninstall.status, 0, uninstall.stderr || uninstall.stdout);
+    assert.equal(fs.existsSync(path.join(temp, 'docs')), true);
+    assert.equal(fs.readFileSync(path.join(temp, 'docs', 'product-notes.md'), 'utf8'), 'keep me\n');
   } finally {
     fs.rmSync(temp, { recursive: true, force: true });
   }
