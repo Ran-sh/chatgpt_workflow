@@ -2,17 +2,25 @@ name: Agent Workflow Check
 
 on:
   pull_request:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 jobs:
   validate-agent-workflow:
-    name: Validate Agent Workflow Contract
+    name: Validate Agent Workflow Contracts
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Validate workflow structure
+      - name: Validate schema JSON
         run: |
-          echo "Validate ACTIVE_TASK schema, task contract, and workflow metadata"
-          echo "Implementation hook for future schema validator"
+          node -e "JSON.parse(require('fs').readFileSync('schema/task-contract.schema.json','utf8'))"
+          node -e "JSON.parse(require('fs').readFileSync('schema/result-contract.schema.json','utf8'))"
+
+      - name: Validate canonical task contract
+        run: node validator/validate-contract.mjs task examples/contracts/task-contract.example.json
+
+      - name: Validate canonical result contract
+        run: node validator/validate-contract.mjs result examples/contracts/result-contract.example.json
