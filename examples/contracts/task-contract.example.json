@@ -1,0 +1,34 @@
+{
+  "id": "example-test-001",
+  "mode": "TEST_ONLY",
+  "source_branch": "main",
+  "source_commit": "LATEST_DEFAULT_BRANCH",
+  "objective": "Run the required verification without modifying project source.",
+  "context": "This is the canonical machine-readable example used by the framework CI.",
+  "allowed_changes": [
+    "docs/agent-results/example-test-001-result.json"
+  ],
+  "forbidden_changes": [
+    "source code",
+    "existing tests",
+    "build scripts",
+    "CI configuration",
+    "package or release metadata"
+  ],
+  "validation": [
+    "Run the project-specific deterministic test command defined by the installed workflow."
+  ],
+  "acceptance_criteria": [
+    "Every required validation is reported with PASS, FAIL, PARTIAL, SKIP, BLOCKED, or NOT RUN.",
+    "No source or existing test file is modified."
+  ],
+  "result_contract": "docs/agent-results/example-test-001-result.json",
+  "completion_commit_contract": [
+    "docs/agent-results/example-test-001-result.json",
+    "docs/agent-tasks/ACTIVE_TASK.json"
+  ],
+  "delete_active_task_on_completion": true,
+  "metadata": {
+    "executor": "ANY"
+  }
+}
