@@ -25,12 +25,13 @@ jobs:
           node -e "JSON.parse(require('fs').readFileSync('schema/result-contract.schema.json','utf8'))"
           node -e "JSON.parse(require('fs').readFileSync('generator/install-manifest.schema.json','utf8'))"
 
-      - name: Validate canonical contracts through CLI
+      - name: Validate canonical contracts and machine task template
         run: |
           node bin/agent-workflow.mjs validate task examples/contracts/task-contract.example.json
+          node bin/agent-workflow.mjs validate task templates/agent-tasks/TEMPLATE_TASK.json
           node bin/agent-workflow.mjs validate result examples/contracts/result-contract.example.json
 
-      - name: Run CLI lifecycle tests
+      - name: Run CLI install/task/validate/uninstall lifecycle tests
         run: npm test
 
       - name: Check version consistency
