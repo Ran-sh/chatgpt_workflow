@@ -1,0 +1,20 @@
+{
+  "task_id": "example-test-001",
+  "source_commit": "0123456789abcdef0123456789abcdef01234567",
+  "result_commit": null,
+  "status": "PASS",
+  "summary": "Canonical example result for CI validation.",
+  "changed_files": [
+    "docs/agent-results/example-test-001-result.json"
+  ],
+  "tests": [
+    {
+      "name": "project deterministic tests",
+      "status": "PASS",
+      "evidence": "Example evidence only."
+    }
+  ],
+  "blockers": [],
+  "result_path": "docs/agent-results/example-test-001-result.json",
+  "notes": []
+}
