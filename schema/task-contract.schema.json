@@ -28,29 +28,31 @@
     "context": { "type": "string" },
     "allowed_changes": {
       "type": "array",
-      "items": { "type": "string" },
+      "items": { "type": "string", "minLength": 1 },
       "uniqueItems": true
     },
     "forbidden_changes": {
       "type": "array",
-      "items": { "type": "string" },
+      "items": { "type": "string", "minLength": 1 },
       "minItems": 1,
       "uniqueItems": true
     },
     "validation": {
       "type": "array",
       "items": { "type": "string", "minLength": 1 },
-      "minItems": 1
+      "minItems": 1,
+      "uniqueItems": true
     },
     "acceptance_criteria": {
       "type": "array",
       "items": { "type": "string", "minLength": 1 },
-      "minItems": 1
+      "minItems": 1,
+      "uniqueItems": true
     },
     "result_contract": { "type": "string", "minLength": 1 },
     "completion_commit_contract": {
       "type": "array",
-      "items": { "type": "string" },
+      "items": { "type": "string", "minLength": 1 },
       "uniqueItems": true
     },
     "delete_active_task_on_completion": { "type": "boolean", "const": true },
@@ -58,5 +60,22 @@
       "type": "object",
       "additionalProperties": { "type": ["string", "number", "boolean", "null"] }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "mode": { "enum": ["TEST_ONLY", "REVIEW_ONLY"] }
+        },
+        "required": ["mode"]
+      },
+      "then": {
+        "properties": {
+          "allowed_changes": {
+            "items": { "type": "string", "pattern": "^docs/agent-results/" }
+          }
+        }
+      }
+    }
+  ]
 }
