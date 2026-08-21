@@ -2,7 +2,7 @@
 
 **让 ChatGPT 成为 GitHub 上的总控，让 Codex / ZCode / Claude Code / DeepSeek Harness 成为远程执行器。**
 
-Current version: **1.7.0**
+Current version: **1.8.0**
 
 ## 工作流
 
@@ -84,13 +84,13 @@ Install the latest stable workflow from `Ran-sh/chatgpt_workflow` into this repo
 - `TEST_ONLY`
 - `REVIEW_ONLY`
 
-Result Contract 记录秒级、带时区的执行时间线。最终结果必须由 validator 自己盖章：
+Result Contract v2 记录秒级、带时区的执行时间线。最终结果必须由 validator 自己盖章：
 
 ```bash
 node .agent-workflow/validator/validate-contract.mjs result <result-file> --stamp
 ```
 
-`--stamp` 成功后会写入 `result_validation` 的 PASS、验证时间、命令和证据。
+`--stamp` 成功后会写入 `result_validation` 的 PASS、验证时间、命令和证据；历史 v1 Result 仍可继续验证，无需重写。
 
 普通验证：
 
