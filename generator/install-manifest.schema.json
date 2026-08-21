@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Agent Workflow Install Manifest",
+  "type": "object",
+  "required": ["project", "workflow_version", "generated_files"],
+  "properties": {
+    "project": {"type": "string"},
+    "workflow_version": {"type": "string"},
+    "generated_files": {"type": "array", "items": {"type": "string"}}
+  }
+}
