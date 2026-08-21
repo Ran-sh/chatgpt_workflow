@@ -17,10 +17,26 @@ function validateTask(value) {
   if (!value.id) errors.push('missing id');
   if (!value.mode) errors.push('missing mode');
   else if (!MODES.has(value.mode)) errors.push(`invalid mode: ${value.mode}`);
+  if (!value.source_branch) errors.push('missing source_branch');
   if (!value.source_commit) errors.push('missing source_commit');
   if (!value.objective) errors.push('missing objective');
+  if (typeof value.context !== 'string') errors.push('missing context');
+  if (!Array.isArray(value.allowed_changes)) errors.push('missing allowed_changes');
+  if (!Array.isArray(value.forbidden_changes) || value.forbidden_changes.length === 0) errors.push('missing forbidden_changes');
   if (!Array.isArray(value.validation) || value.validation.length === 0) errors.push('missing validation');
+  if (!Array.isArray(value.acceptance_criteria) || value.acceptance_criteria.length === 0) errors.push('missing acceptance_criteria');
   if (!value.result_contract) errors.push('missing result_contract');
+  if (!Array.isArray(value.completion_commit_contract)) errors.push('missing completion_commit_contract');
+  if (value.delete_active_task_on_completion !== true) errors.push('delete_active_task_on_completion must be true');
+
+  if (value.mode === 'TEST_ONLY') {
+    for (const path of value.allowed_changes ?? []) {
+      if (!/^docs\/agent-results\//.test(path)) {
+        errors.push(`TEST_ONLY allowed_changes may only include docs/agent-results/**: ${path}`);
+      }
+    }
+  }
+
   return errors;
 }
 
@@ -45,6 +61,14 @@ function validateResult(value) {
     if (!test.status) errors.push(`tests[${index}]: missing status`);
     else if (!STATUSES.has(test.status)) errors.push(`tests[${index}]: invalid status: ${test.status}`);
   }
+
+  if (value.status === 'BLOCKED' && (value.blockers ?? []).length === 0) {
+    errors.push('BLOCKED result must include at least one blocker');
+  }
+  if (value.status === 'PASS' && (value.tests ?? []).some(test => test.status !== 'PASS')) {
+    errors.push('PASS result cannot contain non-PASS test states');
+  }
+
   return errors;
 }
 
