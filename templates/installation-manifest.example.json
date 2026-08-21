@@ -1,0 +1,23 @@
+{
+  "workflow_source": "Ran-sh/chatgpt_workflow",
+  "workflow_version": "1.5.0",
+  "installed_from_commit": "<mother-template-commit-sha>",
+  "target_repository": "<owner/repo>",
+  "target_source_commit": "<target-source-commit-sha>",
+  "created_files": [
+    "docs/agent-workflow.md",
+    "docs/agent-short-triggers.md",
+    "docs/agent-tasks/README.md",
+    "docs/agent-results/README.md",
+    "docs/agent-contracts/task-contract.schema.json",
+    "docs/agent-contracts/result-contract.schema.json",
+    "docs/agent-contracts/validate-contract.mjs"
+  ],
+  "modified_files": [],
+  "active_task_files": [],
+  "release_removal_policy": "remove-created-files-only",
+  "notes": [
+    "Do not delete modified_files automatically during uninstall.",
+    "No ACTIVE task should exist immediately after installation."
+  ]
+}
