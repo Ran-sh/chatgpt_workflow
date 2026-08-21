@@ -8,14 +8,13 @@
     "task_id",
     "source_commit",
     "status",
-    "timeline",
     "changed_files",
     "tests",
     "blockers",
-    "result_path",
-    "result_validation"
+    "result_path"
   ],
   "properties": {
+    "schema_version": { "type": "integer", "const": 2 },
     "task_id": { "type": "string", "minLength": 1 },
     "source_commit": { "type": "string", "minLength": 1 },
     "result_commit": { "type": ["string", "null"] },
@@ -80,5 +79,16 @@
       }
     },
     "notes": { "type": "array", "items": { "type": "string" } }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": ["schema_version"],
+        "properties": { "schema_version": { "const": 2 } }
+      },
+      "then": {
+        "required": ["timeline", "result_validation"]
+      }
+    }
+  ]
 }
