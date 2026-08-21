@@ -39,11 +39,19 @@ export function validateResultContract(result: Partial<ResultContract>) {
   if (!Array.isArray(result.tests)) errors.push('missing tests');
   if (!Array.isArray(result.blockers)) errors.push('missing blockers');
   if (!result.result_path) errors.push('missing result_path');
+  else if (!/^docs\/agent-results\//.test(result.result_path)) errors.push('result_path must be under docs/agent-results/**');
 
   for (const [index, test] of (result.tests ?? []).entries()) {
     if (!test?.name) errors.push(`tests[${index}]: missing name`);
     if (!test?.status) errors.push(`tests[${index}]: missing status`);
     else if (!allowedStatuses.has(test.status)) errors.push(`tests[${index}]: invalid status: ${test.status}`);
+  }
+
+  if (result.status === 'BLOCKED' && (result.blockers ?? []).length === 0) {
+    errors.push('BLOCKED result must include at least one blocker');
+  }
+  if (result.status === 'PASS' && (result.tests ?? []).some(test => test.status !== 'PASS')) {
+    errors.push('PASS result cannot contain non-PASS test states');
   }
 
   return {

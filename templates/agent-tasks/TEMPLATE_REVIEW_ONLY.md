@@ -1,12 +1,13 @@
 # REVIEW_ONLY Task Template
 
-Protocol: Agent Handoff Protocol v1
-Agent: CODEX | ZCODE | DEEPSEEK_HARNESS | ANY
+Protocol: Agent Handoff Protocol
 Mode: REVIEW_ONLY
 Source Branch:
 Source Commit:
 Result Path:
 Delete Active Task On Completion: YES
+
+Executor: ANY compatible platform. Executor choice does not change permissions.
 
 ## Goal
 
@@ -16,9 +17,10 @@ Delete Active Task On Completion: YES
 
 ## Read-only Constraints
 
-No source changes.
-No test changes.
-No configuration changes.
+- No source changes.
+- No existing test changes.
+- No configuration/build/CI/package/release changes.
+- Writable paths are limited to `docs/agent-results/**`.
 
 ## Review Checklist
 
@@ -28,6 +30,8 @@ No configuration changes.
 - maintainability
 - test coverage
 
+## Acceptance Criteria
+
 ## Result Contract
 
-Report findings with severity and evidence.
+Report findings with severity and evidence. Validation statuses must use the canonical status vocabulary where applicable.

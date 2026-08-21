@@ -8,6 +8,10 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.resolve(here, '..');
 const manifestRelativePath = 'docs/.agent-workflow-install.json';
+const activeTaskRelativePath = 'docs/agent-tasks/ACTIVE_TASK.json';
+const activeTaskCompanionRelativePath = 'docs/agent-tasks/ACTIVE_TASK.md';
+const resultDirectoryPrefix = 'docs/agent-results/';
+const validModes = new Set(['IMPLEMENT', 'TEST_ONLY', 'REVIEW_ONLY']);
 
 function fail(message, code = 1) {
   console.error(`agent-workflow: ${message}`);
@@ -24,11 +28,13 @@ function readJson(file) {
 
 function ensureRelativeSafe(rel) {
   if (!rel || path.isAbsolute(rel)) fail(`unsafe managed path: ${rel}`);
-  const normalized = path.normalize(rel);
-  if (normalized === '..' || normalized.startsWith(`..${path.sep}`)) {
-    fail(`unsafe managed path: ${rel}`);
-  }
+  const normalized = path.normalize(rel).split(path.sep).join('/');
+  if (normalized === '..' || normalized.startsWith('../')) fail(`unsafe managed path: ${rel}`);
   return normalized;
+}
+
+function unique(values) {
+  return [...new Set(values)];
 }
 
 function detectPackageManager(target) {
@@ -61,9 +67,7 @@ function detectProject(target) {
     facts.languages.push('JavaScript');
     try {
       const pkg = readJson(path.join(target, 'package.json'));
-      if (typeof pkg.packageManager === 'string') {
-        facts.package_manager = pkg.packageManager.split('@')[0];
-      }
+      if (typeof pkg.packageManager === 'string') facts.package_manager = pkg.packageManager.split('@')[0];
       facts.package_manager ??= detectPackageManager(target);
       const manager = facts.package_manager ?? 'npm';
       if (pkg.scripts?.build) facts.build_command = packageScriptCommand(manager, 'build');
@@ -75,7 +79,7 @@ function detectProject(target) {
   if (has('pyproject.toml') || has('requirements.txt')) facts.languages.push('Python');
   if (has('go.mod')) facts.languages.push('Go');
   if (has('Cargo.toml')) facts.languages.push('Rust');
-  facts.languages = [...new Set(facts.languages)];
+  facts.languages = unique(facts.languages);
   facts.package_manager ??= detectPackageManager(target);
 
   const workflows = path.join(target, '.github', 'workflows');
@@ -99,6 +103,7 @@ function copyPlan(facts) {
     ['templates/agent-workflow.md', 'docs/agent-workflow.md', projectSection(facts)],
     ['templates/agent-short-triggers.md', 'docs/agent-short-triggers.md', ''],
     ['templates/agent-tasks/README.md', 'docs/agent-tasks/README.md', ''],
+    ['templates/agent-tasks/TEMPLATE_TASK.json', 'docs/agent-tasks/TEMPLATE_TASK.json', ''],
     ['templates/agent-tasks/TEMPLATE_IMPLEMENT.md', 'docs/agent-tasks/TEMPLATE_IMPLEMENT.md', ''],
     ['templates/agent-tasks/TEMPLATE_TEST_ONLY.md', 'docs/agent-tasks/TEMPLATE_TEST_ONLY.md', ''],
     ['templates/agent-tasks/TEMPLATE_REVIEW_ONLY.md', 'docs/agent-tasks/TEMPLATE_REVIEW_ONLY.md', ''],
@@ -115,43 +120,33 @@ function copyPlan(facts) {
 
 function parentDirectories(rel) {
   const dirs = [];
-  let current = path.dirname(rel);
+  let current = path.posix.dirname(rel);
   while (current && current !== '.') {
     dirs.push(ensureRelativeSafe(current));
-    current = path.dirname(current);
+    current = path.posix.dirname(current);
   }
   return dirs;
 }
 
 function install(targetArg) {
   const target = path.resolve(targetArg ?? process.cwd());
-  if (!fs.existsSync(target) || !fs.statSync(target).isDirectory()) {
-    fail(`target directory does not exist: ${target}`);
-  }
+  if (!fs.existsSync(target) || !fs.statSync(target).isDirectory()) fail(`target directory does not exist: ${target}`);
 
   const manifestPath = path.join(target, manifestRelativePath);
-  if (fs.existsSync(manifestPath)) {
-    fail(`workflow is already installed (${manifestRelativePath} exists)`);
-  }
+  if (fs.existsSync(manifestPath)) fail(`workflow is already installed (${manifestRelativePath} exists)`);
 
   const facts = detectProject(target);
   const plan = copyPlan(facts);
   const missingSources = plan.filter((item) => !fs.existsSync(item.source));
-  if (missingSources.length) {
-    fail(`package is incomplete; missing source: ${missingSources[0].source}`);
-  }
+  if (missingSources.length) fail(`package is incomplete; missing source: ${missingSources[0].source}`);
 
-  const conflicts = plan
-    .map((item) => item.destination)
-    .filter((rel) => fs.existsSync(path.join(target, rel)));
-  if (conflicts.length) {
-    fail(`refusing to overwrite pre-existing files:\n- ${conflicts.join('\n- ')}`);
-  }
+  const conflicts = plan.map((item) => item.destination).filter((rel) => fs.existsSync(path.join(target, rel)));
+  if (conflicts.length) fail(`refusing to overwrite pre-existing files:\n- ${conflicts.join('\n- ')}`);
 
   const allDestinations = [...plan.map((item) => item.destination), manifestRelativePath];
-  const generatedDirs = [...new Set(allDestinations.flatMap(parentDirectories))]
+  const generatedDirs = unique(allDestinations.flatMap(parentDirectories))
     .filter((rel) => !fs.existsSync(path.join(target, rel)))
-    .sort((a, b) => a.split(path.sep).length - b.split(path.sep).length);
+    .sort((a, b) => a.split('/').length - b.split('/').length);
 
   for (const item of plan) {
     const destination = path.join(target, item.destination);
@@ -179,25 +174,201 @@ function install(targetArg) {
   console.log('No ACTIVE task was created.');
 }
 
+function validatorPath() {
+  return path.join(packageRoot, 'validator', 'validate-contract.mjs');
+}
+
+function runValidator(kind, file, stdio = 'inherit') {
+  return spawnSync(process.execPath, [validatorPath(), kind, file], {
+    stdio,
+    encoding: stdio === 'inherit' ? undefined : 'utf8'
+  });
+}
+
 function validate(kind, fileArg) {
-  if (!['task', 'result'].includes(kind)) {
-    fail('validate requires kind: task or result');
-  }
+  if (!['task', 'result'].includes(kind)) fail('validate requires kind: task or result');
   if (!fileArg) fail('validate requires a contract file path');
   const file = path.resolve(fileArg);
   if (!fs.existsSync(file)) fail(`contract file does not exist: ${file}`);
-
-  const validator = path.join(packageRoot, 'validator', 'validate-contract.mjs');
-  const result = spawnSync(process.execPath, [validator, kind, file], { stdio: 'inherit' });
+  const result = runValidator(kind, file, 'inherit');
   process.exit(result.status ?? 1);
+}
+
+function gitValue(target, args) {
+  const result = spawnSync('git', ['-C', target, ...args], { encoding: 'utf8' });
+  if (result.status !== 0) return null;
+  const value = result.stdout.trim();
+  return value || null;
+}
+
+function generatedTaskId() {
+  return `TASK-${new Date().toISOString().replace(/\D/g, '').slice(0, 14)}`;
+}
+
+function parseTaskOptions(args) {
+  const options = {
+    allow: [],
+    forbid: [],
+    validate: [],
+    accept: [],
+    complete: [],
+    companion: false
+  };
+  const scalar = new Map([
+    ['--target', 'target'],
+    ['--id', 'id'],
+    ['--mode', 'mode'],
+    ['--source-branch', 'sourceBranch'],
+    ['--source-commit', 'sourceCommit'],
+    ['--objective', 'objective'],
+    ['--context', 'context'],
+    ['--result', 'result']
+  ]);
+  const repeated = new Map([
+    ['--allow', 'allow'],
+    ['--forbid', 'forbid'],
+    ['--validate', 'validate'],
+    ['--accept', 'accept'],
+    ['--complete', 'complete']
+  ]);
+
+  for (let i = 0; i < args.length; i += 1) {
+    const token = args[i];
+    if (token === '--companion') {
+      options.companion = true;
+      continue;
+    }
+    const scalarKey = scalar.get(token);
+    const repeatedKey = repeated.get(token);
+    if (!scalarKey && !repeatedKey) fail(`unknown task create option: ${token}`);
+    const value = args[i + 1];
+    if (!value || value.startsWith('--')) fail(`${token} requires a value`);
+    if (scalarKey) options[scalarKey] = value;
+    else options[repeatedKey].push(value);
+    i += 1;
+  }
+  return options;
+}
+
+function defaultForbidden(mode) {
+  if (mode === 'TEST_ONLY' || mode === 'REVIEW_ONLY') {
+    return ['source code', 'existing tests', 'build scripts', 'CI configuration', 'package or release metadata'];
+  }
+  return ['secrets and credentials', 'unrelated files outside allowed_changes', 'workflow protocol or installation metadata unless explicitly allowed'];
+}
+
+function taskCompanion(contract) {
+  return `# Active Task — Human Companion\n\n> Non-authoritative view. The machine-readable \`ACTIVE_TASK.json\` is the source of truth.\n\n- ID: \`${contract.id}\`\n- Mode: \`${contract.mode}\`\n- Source: \`${contract.source_branch}@${contract.source_commit}\`\n- Result Contract: \`${contract.result_contract}\`\n\n## Objective\n\n${contract.objective}\n\n## Context\n\n${contract.context || '(none)'}\n\n## Allowed Changes\n\n${contract.allowed_changes.map((item) => `- ${item}`).join('\n')}\n\n## Forbidden Changes\n\n${contract.forbidden_changes.map((item) => `- ${item}`).join('\n')}\n\n## Validation\n\n${contract.validation.map((item) => `- ${item}`).join('\n')}\n\n## Acceptance Criteria\n\n${contract.acceptance_criteria.map((item) => `- ${item}`).join('\n')}\n`;
+}
+
+function taskCreate(args) {
+  const options = parseTaskOptions(args);
+  const target = path.resolve(options.target ?? process.cwd());
+  if (!fs.existsSync(target) || !fs.statSync(target).isDirectory()) fail(`target directory does not exist: ${target}`);
+  if (!fs.existsSync(path.join(target, 'docs', 'agent-workflow.md'))) {
+    fail('target does not appear to have Agent Workflow installed (docs/agent-workflow.md is missing)');
+  }
+
+  const mode = String(options.mode ?? '').toUpperCase();
+  if (!validModes.has(mode)) fail('task create requires --mode IMPLEMENT, TEST_ONLY, or REVIEW_ONLY');
+  if (!options.objective) fail('task create requires --objective');
+  if (!options.validate.length) fail('task create requires at least one --validate; do not invent validation commands');
+  if (!options.accept.length) fail('task create requires at least one --accept');
+
+  const id = options.id ?? generatedTaskId();
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(id)) fail('task id may contain only letters, numbers, dot, underscore, and hyphen');
+
+  const outputRel = activeTaskRelativePath;
+  const output = path.join(target, outputRel);
+  const companionRel = activeTaskCompanionRelativePath;
+  const companion = path.join(target, companionRel);
+
+  if (fs.existsSync(output) || fs.existsSync(companion)) {
+    fail('an ACTIVE task already exists; complete or intentionally remove it before creating another');
+  }
+
+  const sourceBranch = options.sourceBranch ?? gitValue(target, ['rev-parse', '--abbrev-ref', 'HEAD']);
+  const sourceCommit = options.sourceCommit ?? gitValue(target, ['rev-parse', 'HEAD']);
+  if (!sourceBranch || sourceBranch === 'HEAD') fail('cannot determine source branch; pass --source-branch explicitly');
+  if (!sourceCommit) fail('cannot determine source commit; pass --source-commit explicitly');
+
+  const resultContract = ensureRelativeSafe(options.result ?? `${resultDirectoryPrefix}${id}-result.json`);
+  if (!resultContract.startsWith(resultDirectoryPrefix)) fail(`result contract must be under ${resultDirectoryPrefix}`);
+
+  const explicitAllowed = unique(options.allow);
+  if (mode === 'IMPLEMENT' && !explicitAllowed.length) fail('IMPLEMENT tasks require at least one --allow path');
+  if (mode === 'TEST_ONLY' || mode === 'REVIEW_ONLY') {
+    for (const item of explicitAllowed) {
+      if (!item.startsWith(resultDirectoryPrefix)) fail(`${mode} --allow paths must be under ${resultDirectoryPrefix}`);
+    }
+  }
+  const allowedChanges = unique([...explicitAllowed, resultContract]);
+
+  const forbiddenChanges = unique(options.forbid.length ? options.forbid : defaultForbidden(mode));
+  let completionContract = unique(options.complete.length ? options.complete : allowedChanges);
+  completionContract = unique([
+    ...completionContract,
+    resultContract,
+    activeTaskRelativePath,
+    ...(options.companion ? [activeTaskCompanionRelativePath] : [])
+  ]);
+
+  const version = readText(path.join(packageRoot, 'VERSION')).trim();
+  const contract = {
+    id,
+    mode,
+    source_branch: sourceBranch,
+    source_commit: sourceCommit,
+    objective: options.objective,
+    context: options.context ?? '',
+    allowed_changes: allowedChanges,
+    forbidden_changes: forbiddenChanges,
+    validation: unique(options.validate),
+    acceptance_criteria: unique(options.accept),
+    result_contract: resultContract,
+    completion_commit_contract: completionContract,
+    delete_active_task_on_completion: true,
+    metadata: {
+      executor: 'ANY',
+      generator: `agent-workflow@${version}`,
+      generated_at: new Date().toISOString(),
+      companion: options.companion
+    }
+  };
+
+  fs.mkdirSync(path.dirname(output), { recursive: true });
+  const temp = `${output}.tmp-${process.pid}`;
+  fs.writeFileSync(temp, `${JSON.stringify(contract, null, 2)}\n`, 'utf8');
+  const check = runValidator('task', temp, 'pipe');
+  if (check.status !== 0) {
+    fs.rmSync(temp, { force: true });
+    const detail = (check.stderr || check.stdout || '').trim();
+    fail(`generated Task Contract failed validation${detail ? `:\n${detail}` : ''}`);
+  }
+  fs.renameSync(temp, output);
+
+  if (options.companion) fs.writeFileSync(companion, taskCompanion(contract), 'utf8');
+
+  console.log(`Created ${outputRel}`);
+  if (options.companion) console.log(`Created ${companionRel} (non-authoritative companion)`);
+  console.log(`Task ID: ${id}`);
+  console.log(`Mode: ${mode}`);
+  console.log(`Source: ${sourceBranch}@${sourceCommit}`);
+  console.log('Executor: ANY');
+}
+
+function hasActiveTask(target) {
+  return [activeTaskRelativePath, activeTaskCompanionRelativePath]
+    .filter((rel) => fs.existsSync(path.join(target, rel)));
 }
 
 function uninstall(targetArg) {
   const target = path.resolve(targetArg ?? process.cwd());
   const manifestPath = path.join(target, manifestRelativePath);
-  if (!fs.existsSync(manifestPath)) {
-    fail(`no installation manifest found at ${manifestRelativePath}`);
-  }
+  if (!fs.existsSync(manifestPath)) fail(`no installation manifest found at ${manifestRelativePath}`);
+
+  const active = hasActiveTask(target);
+  if (active.length) fail(`refusing to uninstall while an ACTIVE task exists:\n- ${active.join('\n- ')}`);
 
   let manifest;
   try {
@@ -205,10 +376,8 @@ function uninstall(targetArg) {
   } catch (error) {
     fail(`cannot parse installation manifest: ${error.message}`);
   }
-
-  if (!Array.isArray(manifest.generated_files)) {
-    fail('installation manifest has no generated_files array');
-  }
+  if (manifest.source_repository !== 'Ran-sh/chatgpt_workflow') fail('installation manifest does not identify Ran-sh/chatgpt_workflow');
+  if (!Array.isArray(manifest.generated_files)) fail('installation manifest has no generated_files array');
 
   const files = manifest.generated_files.map(ensureRelativeSafe);
   if (!files.includes(manifestRelativePath)) files.push(manifestRelativePath);
@@ -220,15 +389,11 @@ function uninstall(targetArg) {
     if (fs.existsSync(absolute) && fs.statSync(absolute).isFile()) fs.unlinkSync(absolute);
   }
 
-  const dirs = Array.isArray(manifest.generated_dirs)
-    ? manifest.generated_dirs.map(ensureRelativeSafe)
-    : [];
-  dirs.sort((a, b) => b.split(path.sep).length - a.split(path.sep).length);
+  const dirs = Array.isArray(manifest.generated_dirs) ? manifest.generated_dirs.map(ensureRelativeSafe) : [];
+  dirs.sort((a, b) => b.split('/').length - a.split('/').length);
   for (const rel of dirs) {
     const absolute = path.join(target, rel);
-    if (fs.existsSync(absolute) && fs.statSync(absolute).isDirectory() && fs.readdirSync(absolute).length === 0) {
-      fs.rmdirSync(absolute);
-    }
+    if (fs.existsSync(absolute) && fs.statSync(absolute).isDirectory() && fs.readdirSync(absolute).length === 0) fs.rmdirSync(absolute);
   }
 
   console.log(`Removed Agent Workflow managed files from ${target}`);
@@ -236,7 +401,7 @@ function uninstall(targetArg) {
 }
 
 function help() {
-  console.log(`agent-workflow\n\nUsage:\n  agent-workflow install [target]\n  agent-workflow validate task <file>\n  agent-workflow validate result <file>\n  agent-workflow uninstall [target]\n  agent-workflow --version\n\nThe installer never creates an ACTIVE task and refuses to overwrite pre-existing managed paths.`);
+  console.log(`agent-workflow\n\nUsage:\n  agent-workflow install [target]\n  agent-workflow task create --mode <MODE> --objective <TEXT> --validate <CHECK> --accept <CRITERION> [options]\n  agent-workflow validate task <file>\n  agent-workflow validate result <file>\n  agent-workflow uninstall [target]\n  agent-workflow --version\n\nTask create options:\n  --target <dir>\n  --id <task-id>\n  --source-branch <branch>\n  --source-commit <sha-or-symbolic-ref>\n  --context <text>\n  --allow <path>          repeatable; required for IMPLEMENT; result-only for read-only modes\n  --forbid <path-or-rule> repeatable; safe defaults used when omitted\n  --validate <check>      repeatable; at least one required\n  --accept <criterion>    repeatable; at least one required\n  --result <path>         must be under docs/agent-results/\n  --complete <path>       repeatable completion commit additions\n  --companion             also write non-authoritative ACTIVE_TASK.md\n\nACTIVE tasks always use docs/agent-tasks/ACTIVE_TASK.json. The installer never creates an ACTIVE task. Task generation refuses to replace an existing ACTIVE task. Uninstall refuses to run while an ACTIVE task exists.`);
 }
 
 const args = process.argv.slice(2);
@@ -248,6 +413,10 @@ if (args[0] === '--version' || args[0] === '-v') {
 switch (args[0]) {
   case 'install':
     install(args[1]);
+    break;
+  case 'task':
+    if (args[1] !== 'create') fail('task requires subcommand: create');
+    taskCreate(args.slice(2));
     break;
   case 'validate':
     validate(args[1], args[2]);
