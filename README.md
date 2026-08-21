@@ -1,195 +1,117 @@
 # ChatGPT Workflow
 
-A GitHub-centered remote execution workflow: **ChatGPT acts as the orchestrator; Codex, ZCode, Claude Code, DeepSeek Harness, or another compatible agent acts as the remote executor when real local execution is required.**
+**让 ChatGPT 成为 GitHub 上的总控，让 Codex / ZCode / Claude Code / DeepSeek Harness 成为远程执行器。**
 
 Current version: **1.7.0**
 
-## The goal
-
-The user should be able to work like this:
+## 工作流
 
 ```text
-User request
+你提出需求
    ↓
-ChatGPT inspects the repository and changes what it can through GitHub
+ChatGPT 分析并直接修改 GitHub
    ↓
-Something requires the user's real machine/runtime/account/device/release environment
+遇到必须在真实电脑 / 环境里完成的工作
    ↓
-ChatGPT writes and commits docs/agent-tasks/ACTIVE_TASK.json
+ChatGPT 写入 docs/agent-tasks/ACTIVE_TASK.json
    ↓
-User sends one short message to Codex or another executor
+你给 Codex 等执行器一句话
    ↓
-Executor runs the task locally and commits the Result Contract
+执行器完成本地工作并提交 Result Contract
    ↓
-User says "finished"
-   ↓
-ChatGPT reads GitHub, reviews the result, and continues
+ChatGPT 检查 GitHub，继续下一步
 ```
 
-The workflow is designed to minimize manual relaying between ChatGPT and the execution agent.
+核心原则只有三个：
 
-## Three core rules
+- **ChatGPT 负责决策和 GitHub 操作。**
+- **GitHub 保存任务和结果。**
+- **Executor 只负责 ChatGPT 无法真实执行的本地工作。**
 
-1. **ChatGPT is the orchestrator.** It analyzes, makes GitHub-side changes, creates tasks only when remote execution is actually needed, reviews results, and decides the next step.
-2. **GitHub is the durable handoff layer.** Task details and execution evidence live in the repository, not in long chat prompts.
-3. **Executors are interchangeable remote hands.** Codex, ZCode, Claude Code, DeepSeek Harness, or another compatible executor follows the same Task Contract. Executor identity never grants permissions.
+## 一句话执行
 
-## The one-line executor workflow
-
-After ChatGPT has committed a valid task, the normal message to the executor is only:
+推荐给执行器的提示词：
 
 ```text
-Execute ACTIVE_TASK.json according to Agent Workflow Protocol.
+拉取 <owner/repo> 的 <branch> 最新代码，读取 docs/agent-workflow.md，并执行 docs/agent-tasks/ACTIVE_TASK.json；完成后按协议提交结果。
 ```
 
-Chinese:
+如果执行器已经打开目标仓库，可以更短：
 
 ```text
-执行 ACTIVE_TASK.json，按 Agent Workflow Protocol 完成即可。
+拉取目标分支最新代码并执行 docs/agent-tasks/ACTIVE_TASK.json，按 Agent Workflow Protocol 完成即可。
 ```
 
-That trigger contains no task detail by design. Everything the executor needs is already in:
-
-```text
-docs/agent-workflow.md
-docs/agent-tasks/ACTIVE_TASK.json
-```
-
-After execution, the user can simply tell ChatGPT:
-
-```text
-Codex finished. Check GitHub.
-```
-
-ChatGPT then reads the Result Contract and repository changes directly.
-
-See `install/EXECUTE_TASK_PROMPT.md`, `protocol/orchestrator-executor-boundary.md`, and `protocol/local-execution-handoff.md`.
-
-## When ChatGPT delegates
-
-ChatGPT should **not** create an executor task for work it can already complete safely through GitHub.
-
-Create an ACTIVE Task when the remaining work requires something ChatGPT cannot truly perform through GitHub, such as:
-
-- running builds, tests, benchmarks, applications, GUIs, plugins, devices, GPUs, or platform-specific environments on the user's machine;
-- using local-only files or workspace state;
-- exercising credentials, accounts, registries, signing/release tools, or provider configuration;
-- publishing/deploying through locally authorized tooling;
-- validating behavior that only exists in a real runtime environment.
-
-This gives the shortest useful loop: **ChatGPT changes GitHub -> executor performs real-world execution -> ChatGPT checks GitHub -> continue.**
-
-## Task authority
-
-The one authoritative active task is:
+任务细节不写进提示词。真正的任务来源只有：
 
 ```text
 docs/agent-tasks/ACTIVE_TASK.json
 ```
 
-Tasks define the work. Agents only execute the work.
+## ChatGPT 什么时候交给 Executor
 
-Supported modes:
+只有 GitHub 本身无法完成时才交接，例如：
 
-- `IMPLEMENT`
-- `TEST_ONLY`
-- `REVIEW_ONLY`
+- 本地 build / test / benchmark
+- 真实应用、插件、浏览器、设备、GPU
+- 本地文件或工作区状态
+- 登录账号、凭据、签名、发布工具
+- 真实运行环境才能确认的行为
 
-The Task Contract owns source revision, scope, forbidden paths, validation, acceptance criteria, Result Contract path, and completion commit rules.
+能通过 GitHub 完成的修改，ChatGPT 直接做，不绕一圈交给 Executor。
 
-## What this repository provides
+## 安装
 
-- Orchestrator / remote-executor operating model
-- Agent-neutral handoff protocol
-- Machine-readable Task and Result JSON Schemas
-- Zero-dependency Node contract validator
-- Executable `agent-workflow` CLI and task generator
-- Safe install/uninstall ownership manifest
-- One-sentence install, execute, and uninstall prompts
-- Executor adapter guidance
-- Project adapters and reference examples
-
-## Install into a fresh project
-
-With Node.js 20+:
+新项目，Node.js 20+：
 
 ```bash
 npm exec --yes --package=github:Ran-sh/chatgpt_workflow -- agent-workflow install .
 ```
 
-Installation creates a project-local workflow snapshot and never creates an ACTIVE task.
-
-For an existing project with workflow files, give a capable coding agent this one sentence:
+已有工作流文件的项目，可让任意 coding agent 执行：
 
 ```text
 Install the latest stable workflow from `Ran-sh/chatgpt_workflow` into this repository, following `install/ONE_COMMAND_INSTALL_PROMPT.md` exactly.
 ```
 
-## Generate an active task
+安装不会创建 ACTIVE task。
 
-The CLI can generate a machine-valid task non-interactively:
+## Task / Result
 
-```bash
-agent-workflow task create \
-  --mode TEST_ONLY \
-  --objective "Run the targeted release retest" \
-  --validate "npm test" \
-  --accept "All required checks are reported"
-```
+支持三种任务模式：
 
-For `IMPLEMENT`, explicitly authorize writable paths with `--allow`.
+- `IMPLEMENT`
+- `TEST_ONLY`
+- `REVIEW_ONLY`
 
-The generator validates the task before activation, records `executor: ANY`, and refuses to overwrite an existing ACTIVE task.
-
-## Validate contracts
+验证：
 
 ```bash
 agent-workflow validate task docs/agent-tasks/ACTIVE_TASK.json
 agent-workflow validate result <result-file>
 ```
 
-Result statuses are limited to:
-
-`PASS`, `FAIL`, `PARTIAL`, `SKIP`, `BLOCKED`, `NOT RUN`.
-
-## Release / uninstall
-
-The workflow is development infrastructure, not a product runtime dependency.
-
-For CLI installations:
+卸载：
 
 ```bash
 agent-workflow uninstall .
 ```
 
-For agent-driven release cleanup:
+## 关键文件
 
 ```text
-Uninstall the Agent Workflow from this repository by following `Ran-sh/chatgpt_workflow/install/ONE_COMMAND_UNINSTALL_PROMPT.md` exactly.
+docs/agent-workflow.md                 执行协议
+docs/agent-tasks/ACTIVE_TASK.json      当前任务
+docs/agent-results/                    执行结果
+schema/                                Task / Result Schema
+validator/                             Contract Validator
+bin/agent-workflow.mjs                 CLI
 ```
 
-Uninstall is manifest-owned and refuses to run while an ACTIVE task exists.
+详细设计见：
 
-## Repository layout
+- `protocol/orchestrator-executor-boundary.md`
+- `protocol/local-execution-handoff.md`
+- `install/EXECUTE_TASK_PROMPT.md`
 
-```text
-protocol/      orchestrator/executor boundary and execution lifecycle
-templates/     project workflow, task scaffolds, and short-trigger output
-schema/        Task and Result contracts
-validator/     executable contract validation
-bin/           CLI and Task Generator
-cli/           CLI lifecycle documentation
-generator/     project detection and installation manifest schema
-agents/        executor-platform integration guidance
-adapters/      project/stack adaptation guidance
-examples/      reference implementations
-install/       one-sentence install/execute/uninstall entry points
-test/          lifecycle and task-generation tests
-```
-
-## Reference projects
-
-- `Ran-sh/dsh-vision`
-- `Ran-sh/dsh-crew`
-
-Project-specific business rules stay in the consumer repository. The mother workflow defines the handoff loop, not the product architecture.
+Reference projects: `Ran-sh/dsh-vision`, `Ran-sh/dsh-crew`.
