@@ -1,44 +1,115 @@
 # ChatGPT Workflow
 
-Reusable, agent-neutral workflow infrastructure for handing structured engineering work from ChatGPT to external execution platforms through GitHub.
+A GitHub-centered remote execution workflow: **ChatGPT acts as the orchestrator; Codex, ZCode, Claude Code, DeepSeek Harness, or another compatible agent acts as the remote executor when real local execution is required.**
 
 Current version: **1.7.0**
 
-## Core idea
+## The goal
 
-**Tasks define the work. Agents are interchangeable executors.**
-
-Codex, ZCode, Claude Code, DeepSeek Harness, or another compatible platform may execute the same Task Contract. Permissions come from the task mode and scope, never from the executor name.
+The user should be able to work like this:
 
 ```text
-ChatGPT / coordinator
+User request
    ↓
-Generate + validate Task Contract
+ChatGPT inspects the repository and changes what it can through GitHub
    ↓
-GitHub (shared source of truth)
+Something requires the user's real machine/runtime/account/device/release environment
    ↓
-Any compatible executor
+ChatGPT writes and commits docs/agent-tasks/ACTIVE_TASK.json
    ↓
-Result Contract
+User sends one short message to Codex or another executor
    ↓
-Validate + coordinator review / next task
+Executor runs the task locally and commits the Result Contract
+   ↓
+User says "finished"
+   ↓
+ChatGPT reads GitHub, reviews the result, and continues
 ```
+
+The workflow is designed to minimize manual relaying between ChatGPT and the execution agent.
+
+## Three core rules
+
+1. **ChatGPT is the orchestrator.** It analyzes, makes GitHub-side changes, creates tasks only when remote execution is actually needed, reviews results, and decides the next step.
+2. **GitHub is the durable handoff layer.** Task details and execution evidence live in the repository, not in long chat prompts.
+3. **Executors are interchangeable remote hands.** Codex, ZCode, Claude Code, DeepSeek Harness, or another compatible executor follows the same Task Contract. Executor identity never grants permissions.
+
+## The one-line executor workflow
+
+After ChatGPT has committed a valid task, the normal message to the executor is only:
+
+```text
+Execute ACTIVE_TASK.json according to Agent Workflow Protocol.
+```
+
+Chinese:
+
+```text
+执行 ACTIVE_TASK.json，按 Agent Workflow Protocol 完成即可。
+```
+
+That trigger contains no task detail by design. Everything the executor needs is already in:
+
+```text
+docs/agent-workflow.md
+docs/agent-tasks/ACTIVE_TASK.json
+```
+
+After execution, the user can simply tell ChatGPT:
+
+```text
+Codex finished. Check GitHub.
+```
+
+ChatGPT then reads the Result Contract and repository changes directly.
+
+See `install/EXECUTE_TASK_PROMPT.md`, `protocol/orchestrator-executor-boundary.md`, and `protocol/local-execution-handoff.md`.
+
+## When ChatGPT delegates
+
+ChatGPT should **not** create an executor task for work it can already complete safely through GitHub.
+
+Create an ACTIVE Task when the remaining work requires something ChatGPT cannot truly perform through GitHub, such as:
+
+- running builds, tests, benchmarks, applications, GUIs, plugins, devices, GPUs, or platform-specific environments on the user's machine;
+- using local-only files or workspace state;
+- exercising credentials, accounts, registries, signing/release tools, or provider configuration;
+- publishing/deploying through locally authorized tooling;
+- validating behavior that only exists in a real runtime environment.
+
+This gives the shortest useful loop: **ChatGPT changes GitHub -> executor performs real-world execution -> ChatGPT checks GitHub -> continue.**
+
+## Task authority
+
+The one authoritative active task is:
+
+```text
+docs/agent-tasks/ACTIVE_TASK.json
+```
+
+Tasks define the work. Agents only execute the work.
+
+Supported modes:
+
+- `IMPLEMENT`
+- `TEST_ONLY`
+- `REVIEW_ONLY`
+
+The Task Contract owns source revision, scope, forbidden paths, validation, acceptance criteria, Result Contract path, and completion commit rules.
 
 ## What this repository provides
 
+- Orchestrator / remote-executor operating model
 - Agent-neutral handoff protocol
-- `IMPLEMENT`, `TEST_ONLY`, and `REVIEW_ONLY` task modes
 - Machine-readable Task and Result JSON Schemas
 - Zero-dependency Node contract validator
-- Executable `agent-workflow` CLI
-- Machine Task Generator with `agent-workflow task create`
+- Executable `agent-workflow` CLI and task generator
 - Safe install/uninstall ownership manifest
-- Canonical lifecycle smoke tests in CI
-- Executor adapter guidance for Codex, ZCode, Claude Code, and DeepSeek Harness
+- One-sentence install, execute, and uninstall prompts
+- Executor adapter guidance
 - Project adapters and reference examples
-- One-sentence install and uninstall prompts for agent-driven migration
 
-## Fast path: install into a fresh project
+## Install into a fresh project
 
 With Node.js 20+:
 
@@ -46,85 +117,29 @@ With Node.js 20+:
 npm exec --yes --package=github:Ran-sh/chatgpt_workflow -- agent-workflow install .
 ```
 
-The installer:
+Installation creates a project-local workflow snapshot and never creates an ACTIVE task.
 
-- detects only repository facts it can verify;
-- copies a local workflow snapshot;
-- installs Task/Result schemas, the machine task scaffold, and the canonical validator;
-- writes `docs/.agent-workflow-install.json` with exact file/directory ownership;
-- refuses to overwrite pre-existing managed files;
-- does **not** create an ACTIVE task.
-
-The target repository receives a local development snapshot. Product runtime does not depend on this mother repository.
-
-## Existing project / migration path
-
-If the target already contains workflow/agent files, do not force-copy over them. Give any capable coding agent this one sentence:
+For an existing project with workflow files, give a capable coding agent this one sentence:
 
 ```text
 Install the latest stable workflow from `Ran-sh/chatgpt_workflow` into this repository, following `install/ONE_COMMAND_INSTALL_PROMPT.md` exactly.
 ```
 
-The full prompt requires repository inspection, project-specific adaptation from verified facts only, ownership tracking, no business-code changes, and no ACTIVE task during installation.
-
 ## Generate an active task
 
-The one authoritative active task path is:
-
-```text
-docs/agent-tasks/ACTIVE_TASK.json
-```
-
-Generate it non-interactively:
+The CLI can generate a machine-valid task non-interactively:
 
 ```bash
 agent-workflow task create \
   --mode TEST_ONLY \
   --objective "Run the targeted release retest" \
   --validate "npm test" \
-  --accept "All required checks are reported" \
-  --companion
+  --accept "All required checks are reported"
 ```
 
-The generator:
+For `IMPLEMENT`, explicitly authorize writable paths with `--allow`.
 
-- requires an explicit mode, objective, validation, and acceptance criterion;
-- uses the current Git branch and exact commit when available, or accepts `--source-branch` / `--source-commit` explicitly;
-- requires at least one explicit `--allow` path for `IMPLEMENT`;
-- always adds the Result Contract itself to `allowed_changes`;
-- machine-enforces `TEST_ONLY` and `REVIEW_ONLY` as result-only write modes under `docs/agent-results/**`;
-- requires the Result Contract to live under `docs/agent-results/**`;
-- refuses to overwrite an existing ACTIVE task;
-- validates generated JSON before activation;
-- writes optional `ACTIVE_TASK.md` only as a non-authoritative human companion;
-- includes required ACTIVE task deletion paths in `completion_commit_contract`;
-- records `executor: ANY` so platform choice cannot change permissions.
-
-Example implementation task:
-
-```bash
-agent-workflow task create \
-  --mode IMPLEMENT \
-  --objective "Fix the requested regression" \
-  --allow "src/**" \
-  --allow "test/**" \
-  --validate "npm test" \
-  --accept "The regression is fixed and required tests pass"
-```
-
-Run `agent-workflow --help` for all generator flags.
-
-## Execute a task
-
-Every executor uses the same trigger and task path:
-
-```text
-Pull the latest target branch. Read `docs/agent-workflow.md`, then read and validate `docs/agent-tasks/ACTIVE_TASK.json`. Execute exactly that task and do not expand scope. Write the required Result Contract/report, remove `ACTIVE_TASK.json` and its `ACTIVE_TASK.md` companion if present only when the task is complete, and commit/push only paths authorized by the Task Contract. If the ACTIVE task is missing or invalid, stop instead of inferring work.
-```
-
-The selected executor must obey the Task Contract's mode, source revision, allowed/forbidden scope, validations, acceptance criteria, result path, and completion commit contract.
-
-If the active task is missing, the executor stops. It must not infer work from chat history, issues, old reports, or another platform's prior task files.
+The generator validates the task before activation, records `executor: ANY`, and refuses to overwrite an existing ACTIVE task.
 
 ## Validate contracts
 
@@ -133,65 +148,48 @@ agent-workflow validate task docs/agent-tasks/ACTIVE_TASK.json
 agent-workflow validate result <result-file>
 ```
 
-The zero-dependency validator rejects unsupported fields, invalid status/mode vocabulary, unsafe read-only writable scope, result paths outside `docs/agent-results/**`, missing Result Contract write permission, and incomplete completion contracts.
+Result statuses are limited to:
 
-The canonical examples can also be checked from this repository:
-
-```bash
-node bin/agent-workflow.mjs validate task examples/contracts/task-contract.example.json
-node bin/agent-workflow.mjs validate result examples/contracts/result-contract.example.json
-```
+`PASS`, `FAIL`, `PARTIAL`, `SKIP`, `BLOCKED`, `NOT RUN`.
 
 ## Release / uninstall
 
-The workflow is development infrastructure, not a required product runtime dependency.
+The workflow is development infrastructure, not a product runtime dependency.
 
-To remove a CLI-installed workflow:
+For CLI installations:
 
 ```bash
 agent-workflow uninstall .
 ```
 
-Uninstall is ownership-based. It reads `docs/.agent-workflow-install.json`, verifies the workflow source, removes only recorded workflow-owned files, and removes only directories that the installer itself created and that are still empty. Pre-existing/unmanaged files and directories are preserved.
-
-Uninstall **refuses to run while `ACTIVE_TASK.json` or its companion exists**. Complete or intentionally abandon the task first.
-
-For agent-driven release cleanup, give the executor:
+For agent-driven release cleanup:
 
 ```text
 Uninstall the Agent Workflow from this repository by following `Ran-sh/chatgpt_workflow/install/ONE_COMMAND_UNINSTALL_PROMPT.md` exactly.
 ```
 
-## Development
-
-```bash
-node bin/agent-workflow.mjs --help
-npm test
-npm run validate:examples
-```
-
-CI validates schemas, canonical contracts, the machine task template, task generation, lifecycle behavior, uninstall safety, and version consistency.
+Uninstall is manifest-owned and refuses to run while an ACTIVE task exists.
 
 ## Repository layout
 
 ```text
-protocol/      workflow lifecycle and execution rules
-templates/     reusable workflow/task templates and machine task scaffold
-schema/        machine-readable Task and Result contracts
-validator/     executable contract validation reference
-bin/           executable CLI and Task Generator
-cli/           CLI behavior and lifecycle documentation
+protocol/      orchestrator/executor boundary and execution lifecycle
+templates/     project workflow, task scaffolds, and short-trigger output
+schema/        Task and Result contracts
+validator/     executable contract validation
+bin/           CLI and Task Generator
+cli/           CLI lifecycle documentation
 generator/     project detection and installation manifest schema
-agents/        executor-platform adapters
+agents/        executor-platform integration guidance
 adapters/      project/stack adaptation guidance
-examples/      real and generic reference implementations
-install/       universal install and uninstall prompts
-test/          CLI lifecycle and task-generation tests
+examples/      reference implementations
+install/       one-sentence install/execute/uninstall entry points
+test/          lifecycle and task-generation tests
 ```
 
-## Reference implementations
+## Reference projects
 
-- `Ran-sh/dsh-vision` — product/plugin project reference
-- `Ran-sh/dsh-crew` — agent-platform/orchestration project reference
+- `Ran-sh/dsh-vision`
+- `Ran-sh/dsh-crew`
 
-Project-specific business rules belong in consumer repositories, not in this mother template.
+Project-specific business rules stay in the consumer repository. The mother workflow defines the handoff loop, not the product architecture.

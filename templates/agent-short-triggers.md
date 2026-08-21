@@ -1,15 +1,43 @@
 # Short Triggers
 
-All compatible executors use the same task path and the same permissions. Executor choice never changes the task contract.
+All compatible executors use the same authoritative task:
+
+`docs/agent-tasks/ACTIVE_TASK.json`
+
+Executor choice never changes permissions, scope, validation, or mode semantics.
 
 ## Canonical trigger
 
 ```text
-Pull the latest target branch. Read `docs/agent-workflow.md`, then read and validate `docs/agent-tasks/ACTIVE_TASK.json`. Execute exactly that task and do not expand scope. Write the required Result Contract/report, remove `ACTIVE_TASK.json` and its `ACTIVE_TASK.md` companion if present only when the task is complete, and commit/push only paths authorized by the Task Contract. If the ACTIVE task is missing or invalid, stop instead of inferring work from chat history, issues, old reports, or another executor.
+Execute ACTIVE_TASK.json according to Agent Workflow Protocol.
 ```
 
-Use this same trigger with Codex, ZCode, Claude Code, DeepSeek Harness, or any future compatible executor.
+That is the normal user-facing trigger for Codex, ZCode, Claude Code, DeepSeek Harness, or another compatible executor.
+
+The trigger intentionally contains no project requirements. The repository workflow and Task Contract contain all execution rules.
+
+## Chinese trigger
+
+```text
+执行 ACTIVE_TASK.json，按 Agent Workflow Protocol 完成即可。
+```
+
+## Completion signal back to ChatGPT
+
+After the executor commits/pushes its result, the user only needs to say something like:
+
+```text
+Codex finished. Check GitHub.
+```
+
+or:
+
+```text
+Codex 做完了，检查 GitHub。
+```
+
+ChatGPT should read the Result Contract and repository state directly rather than asking the user to paste the report.
 
 ## Human companion
 
-`docs/agent-tasks/ACTIVE_TASK.md` may exist as a non-authoritative human-readable companion. If it conflicts with `ACTIVE_TASK.json`, the JSON Task Contract wins. When the task completes, remove the companion together with the JSON task if the completion contract includes it.
+`docs/agent-tasks/ACTIVE_TASK.md` may exist as a non-authoritative human-readable companion. If it conflicts with `ACTIVE_TASK.json`, the JSON Task Contract wins.
