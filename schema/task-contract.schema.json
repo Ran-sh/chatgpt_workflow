@@ -49,7 +49,7 @@
       "minItems": 1,
       "uniqueItems": true
     },
-    "result_contract": { "type": "string", "minLength": 1 },
+    "result_contract": { "type": "string", "minLength": 1, "pattern": "^docs/agent-results/" },
     "completion_commit_contract": {
       "type": "array",
       "items": { "type": "string", "minLength": 1 },
@@ -73,6 +73,15 @@
         "properties": {
           "allowed_changes": {
             "items": { "type": "string", "pattern": "^docs/agent-results/" }
+          },
+          "completion_commit_contract": {
+            "items": {
+              "anyOf": [
+                { "type": "string", "pattern": "^docs/agent-results/" },
+                { "const": "docs/agent-tasks/ACTIVE_TASK.json" },
+                { "const": "docs/agent-tasks/ACTIVE_TASK.md" }
+              ]
+            }
           }
         }
       }
