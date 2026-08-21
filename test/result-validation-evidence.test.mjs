@@ -24,6 +24,7 @@ function run(args) {
 function draftResult() {
   const now = Date.now();
   return {
+    schema_version: 2,
     task_id: 'stamp-test-001',
     source_commit: '0123456789abcdef0123456789abcdef01234567',
     result_commit: null,
@@ -63,6 +64,7 @@ test('result validator --stamp writes validator-owned evidence and second-precis
     assert.match(stamp.stdout, /STAMPED RESULT VALIDATION/);
 
     const stamped = JSON.parse(fs.readFileSync(resultPath, 'utf8'));
+    assert.equal(stamped.schema_version, 2);
     assert.equal(stamped.result_validation.status, 'PASS');
     assert.match(stamped.result_validation.validated_at, timestampPattern);
     assert.equal(
@@ -102,6 +104,38 @@ test('result validator rejects timestamps with milliseconds and reversed timelin
     assert.notEqual(check.status, 0);
     assert.match(check.stderr, /second-precision ISO 8601 with timezone/);
     assert.match(check.stderr, /validated_at must not be earlier than timeline.completed_at/);
+  } finally {
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test('legacy Result Contract v1 remains valid without v2 timeline or validator stamp', () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-result-legacy-'));
+  try {
+    const legacy = {
+      task_id: 'legacy-result-001',
+      source_commit: '0123456789abcdef0123456789abcdef01234567',
+      result_commit: null,
+      status: 'PASS',
+      summary: 'Historical Result Contract written before v2 evidence stamping.',
+      changed_files: ['docs/agent-results/legacy-result-001-result.json'],
+      tests: [
+        {
+          name: 'historical check',
+          status: 'PASS',
+          evidence: 'historical evidence'
+        }
+      ],
+      blockers: [],
+      result_path: 'docs/agent-results/legacy-result-001-result.json',
+      notes: []
+    };
+
+    const resultPath = path.join(temp, 'legacy-result.json');
+    fs.writeFileSync(resultPath, `${JSON.stringify(legacy, null, 2)}\n`);
+    const check = run(['result', resultPath]);
+
+    assert.equal(check.status, 0, check.stderr || check.stdout);
   } finally {
     fs.rmSync(temp, { recursive: true, force: true });
   }
