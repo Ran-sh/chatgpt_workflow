@@ -12,7 +12,7 @@ const TASK_KEYS = new Set([
   'result_contract', 'completion_commit_contract', 'delete_active_task_on_completion', 'metadata'
 ]);
 const RESULT_KEYS = new Set([
-  'task_id', 'source_commit', 'result_commit', 'status', 'summary', 'timeline',
+  'schema_version', 'task_id', 'source_commit', 'result_commit', 'status', 'summary', 'timeline',
   'changed_files', 'tests', 'blockers', 'result_path', 'result_validation', 'notes'
 ]);
 const TEST_KEYS = new Set(['name', 'status', 'evidence']);
@@ -142,6 +142,11 @@ function validateResult(value, { allowMissingResultValidation = false } = {}) {
 
   for (const key of unknownKeys(value, RESULT_KEYS)) errors.push(`unknown result property: ${key}`);
 
+  const schemaVersion = value.schema_version ?? 1;
+  if (value.schema_version !== undefined && value.schema_version !== 2) {
+    errors.push('schema_version must be 2 when present; omit it only for legacy Result Contract v1');
+  }
+
   validateString(value.task_id, 'task_id', errors);
   validateString(value.source_commit, 'source_commit', errors);
   if (value.result_commit !== undefined && value.result_commit !== null) validateString(value.result_commit, 'result_commit', errors);
@@ -149,16 +154,19 @@ function validateResult(value, { allowMissingResultValidation = false } = {}) {
   if (typeof value.status === 'string' && !STATUSES.has(value.status)) errors.push(`invalid status: ${value.status}`);
   if (value.summary !== undefined) validateString(value.summary, 'summary', errors, { allowEmpty: true });
 
-  if (!isObject(value.timeline)) {
-    errors.push('timeline must be an object');
-  } else {
-    for (const key of unknownKeys(value.timeline, TIMELINE_KEYS)) errors.push(`timeline: unknown property: ${key}`);
-    validateTimestamp(value.timeline.started_at, 'timeline.started_at', errors);
-    validateTimestamp(value.timeline.completed_at, 'timeline.completed_at', errors);
-    const started = timestampMs(value.timeline.started_at);
-    const completed = timestampMs(value.timeline.completed_at);
-    if (!Number.isNaN(started) && !Number.isNaN(completed) && completed < started) {
-      errors.push('timeline.completed_at must not be earlier than timeline.started_at');
+  const requiresV2Evidence = schemaVersion === 2;
+  if (requiresV2Evidence || value.timeline !== undefined) {
+    if (!isObject(value.timeline)) {
+      errors.push('timeline must be an object for Result Contract v2');
+    } else {
+      for (const key of unknownKeys(value.timeline, TIMELINE_KEYS)) errors.push(`timeline: unknown property: ${key}`);
+      validateTimestamp(value.timeline.started_at, 'timeline.started_at', errors);
+      validateTimestamp(value.timeline.completed_at, 'timeline.completed_at', errors);
+      const started = timestampMs(value.timeline.started_at);
+      const completed = timestampMs(value.timeline.completed_at);
+      if (!Number.isNaN(started) && !Number.isNaN(completed) && completed < started) {
+        errors.push('timeline.completed_at must not be earlier than timeline.started_at');
+      }
     }
   }
 
@@ -185,23 +193,27 @@ function validateResult(value, { allowMissingResultValidation = false } = {}) {
     }
   }
 
-  if (value.result_validation === undefined && allowMissingResultValidation) {
-    // --stamp validates the draft first, then writes validator-owned evidence and validates again.
-  } else if (!isObject(value.result_validation)) {
-    errors.push('result_validation must be an object; run the result validator with --stamp to create it');
-  } else {
-    for (const key of unknownKeys(value.result_validation, RESULT_VALIDATION_KEYS)) {
-      errors.push(`result_validation: unknown property: ${key}`);
-    }
-    if (value.result_validation.status !== 'PASS') errors.push('result_validation.status must be PASS');
-    validateString(value.result_validation.validator, 'result_validation.validator', errors);
-    validateTimestamp(value.result_validation.validated_at, 'result_validation.validated_at', errors);
-    validateString(value.result_validation.evidence, 'result_validation.evidence', errors);
+  if (requiresV2Evidence && value.result_validation === undefined && allowMissingResultValidation) {
+    // --stamp validates the v2 draft first, then writes validator-owned evidence and validates again.
+  } else if (requiresV2Evidence && !isObject(value.result_validation)) {
+    errors.push('result_validation must be an object for Result Contract v2; run the result validator with --stamp to create it');
+  } else if (value.result_validation !== undefined) {
+    if (!isObject(value.result_validation)) {
+      errors.push('result_validation must be an object');
+    } else {
+      for (const key of unknownKeys(value.result_validation, RESULT_VALIDATION_KEYS)) {
+        errors.push(`result_validation: unknown property: ${key}`);
+      }
+      if (value.result_validation.status !== 'PASS') errors.push('result_validation.status must be PASS');
+      validateString(value.result_validation.validator, 'result_validation.validator', errors);
+      validateTimestamp(value.result_validation.validated_at, 'result_validation.validated_at', errors);
+      validateString(value.result_validation.evidence, 'result_validation.evidence', errors);
 
-    const completed = timestampMs(value.timeline?.completed_at);
-    const validated = timestampMs(value.result_validation.validated_at);
-    if (!Number.isNaN(completed) && !Number.isNaN(validated) && validated < completed) {
-      errors.push('result_validation.validated_at must not be earlier than timeline.completed_at');
+      const completed = timestampMs(value.timeline?.completed_at);
+      const validated = timestampMs(value.result_validation.validated_at);
+      if (!Number.isNaN(completed) && !Number.isNaN(validated) && validated < completed) {
+        errors.push('result_validation.validated_at must not be earlier than timeline.completed_at');
+      }
     }
   }
 
@@ -220,6 +232,7 @@ function secondPrecisionNow() {
 }
 
 async function stampResult(path, value) {
+  value.schema_version = 2;
   const draftErrors = validateResult(value, { allowMissingResultValidation: true });
   if (draftErrors.length > 0) return draftErrors;
 
