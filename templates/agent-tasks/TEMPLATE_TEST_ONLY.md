@@ -1,23 +1,38 @@
 # TEST_ONLY Task Template
 
+Protocol: Agent Handoff Protocol
 Mode: TEST_ONLY
+Source Branch:
+Source Commit:
+Result Path:
+Delete Active Task On Completion: YES
 
-No source code changes allowed.
-No test changes allowed.
-No config/build/CI/package changes allowed.
+Executor: ANY compatible platform. Executor choice does not change permissions.
 
-Report only:
+## Goal
+
+## Context
+
+## Read-only Constraints
+
+- No source code changes.
+- No existing test changes.
+- No config/build/CI/package/release changes.
+- Writable paths are limited to `docs/agent-results/**`.
+
+## Required Validation
+
+Use only real commands/checks established by repository facts or the Task Contract.
+
+## Acceptance Criteria
+
+## Result Contract
+
+Validation statuses must be one of:
+
 - PASS
 - FAIL
 - PARTIAL
 - SKIP
 - BLOCKED
 - NOT RUN
-
-## Scope
-
-## Required Tests
-
-## Acceptance Criteria
-
-## Result Contract
