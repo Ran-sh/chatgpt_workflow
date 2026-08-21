@@ -2,10 +2,41 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Agent Workflow Install Manifest",
   "type": "object",
-  "required": ["project", "workflow_version", "generated_files"],
+  "required": [
+    "schema_version",
+    "source_repository",
+    "project",
+    "workflow_version",
+    "installed_at",
+    "generated_files"
+  ],
   "properties": {
-    "project": {"type": "string"},
-    "workflow_version": {"type": "string"},
-    "generated_files": {"type": "array", "items": {"type": "string"}}
-  }
+    "schema_version": {"type": "integer", "const": 1},
+    "source_repository": {"type": "string", "const": "Ran-sh/chatgpt_workflow"},
+    "project": {"type": "string", "minLength": 1},
+    "workflow_version": {"type": "string", "minLength": 1},
+    "installed_at": {"type": "string", "format": "date-time"},
+    "generated_files": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "generated_dirs": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "project_facts": {
+      "type": "object",
+      "properties": {
+        "languages": {"type": "array", "items": {"type": "string"}},
+        "package_manager": {"type": ["string", "null"]},
+        "build_command": {"type": ["string", "null"]},
+        "test_command": {"type": ["string", "null"]},
+        "ci": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
 }

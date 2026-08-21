@@ -1,23 +1,34 @@
 {
-  "workflow_source": "Ran-sh/chatgpt_workflow",
-  "workflow_version": "1.5.0",
-  "installed_from_commit": "<mother-template-commit-sha>",
-  "target_repository": "<owner/repo>",
-  "target_source_commit": "<target-source-commit-sha>",
-  "created_files": [
+  "schema_version": 1,
+  "source_repository": "Ran-sh/chatgpt_workflow",
+  "workflow_version": "1.6.0",
+  "project": "<target-repository-name>",
+  "installed_at": "2026-01-01T00:00:00.000Z",
+  "generated_files": [
     "docs/agent-workflow.md",
     "docs/agent-short-triggers.md",
     "docs/agent-tasks/README.md",
+    "docs/agent-tasks/TEMPLATE_IMPLEMENT.md",
+    "docs/agent-tasks/TEMPLATE_TEST_ONLY.md",
+    "docs/agent-tasks/TEMPLATE_REVIEW_ONLY.md",
     "docs/agent-results/README.md",
-    "docs/agent-contracts/task-contract.schema.json",
-    "docs/agent-contracts/result-contract.schema.json",
-    "docs/agent-contracts/validate-contract.mjs"
+    ".agent-workflow/schema/task-contract.schema.json",
+    ".agent-workflow/schema/result-contract.schema.json",
+    ".agent-workflow/validator/validate-contract.mjs",
+    "docs/.agent-workflow-install.json"
   ],
-  "modified_files": [],
-  "active_task_files": [],
-  "release_removal_policy": "remove-created-files-only",
-  "notes": [
-    "Do not delete modified_files automatically during uninstall.",
-    "No ACTIVE task should exist immediately after installation."
-  ]
+  "generated_dirs": [
+    ".agent-workflow",
+    ".agent-workflow/schema",
+    ".agent-workflow/validator",
+    "docs/agent-tasks",
+    "docs/agent-results"
+  ],
+  "project_facts": {
+    "languages": [],
+    "package_manager": null,
+    "build_command": null,
+    "test_command": null,
+    "ci": []
+  }
 }

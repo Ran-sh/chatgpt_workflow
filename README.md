@@ -2,7 +2,7 @@
 
 Reusable, agent-neutral workflow infrastructure for handing structured engineering work from ChatGPT to external execution platforms through GitHub.
 
-Current version: **1.5.0**
+Current version: **1.6.0**
 
 ## Core idea
 
@@ -30,60 +30,114 @@ ChatGPT review / next task
 - `IMPLEMENT`, `TEST_ONLY`, and `REVIEW_ONLY` task modes
 - Machine-readable Task and Result JSON Schemas
 - Zero-dependency Node contract validator
-- Canonical executable examples checked by GitHub Actions
+- Executable `agent-workflow` CLI
+- Safe install/uninstall ownership manifest
+- Canonical lifecycle smoke tests in CI
 - Executor adapter guidance for Codex, ZCode, Claude Code, and DeepSeek Harness
-- Project adapters and real reference examples
-- One-command installation prompt for new repositories
-- Installation ownership manifest for safe removal
-- One-command uninstall/release-removal prompt
+- Project adapters and reference examples
+- One-sentence install and uninstall prompts for agent-driven migration
 
-## Install into a new project
+## Fast path: fresh project
 
-Use the short prompt from `install/ONE_COMMAND_INSTALL_PROMPT.md`:
+With Node.js 20+, a fresh repository can install the workflow directly from the GitHub source package:
 
-```text
-Install the latest stable workflow from `Ran-sh/chatgpt_workflow` into this repository, following `install/ONE_COMMAND_INSTALL_PROMPT.md` exactly. Adapt it to this project's real commands and policies, install the machine-readable contracts and validator, create the installation ownership manifest, do not modify business code, and do not create an ACTIVE task.
+```bash
+npm exec --yes --package=github:Ran-sh/chatgpt_workflow -- agent-workflow install .
 ```
 
-The target repository receives its own adapted snapshot. It does **not** depend on this mother repository at runtime.
+The installer:
+
+- detects only repository facts it can verify;
+- copies a local workflow snapshot;
+- installs Task/Result schemas and the canonical validator;
+- writes `docs/.agent-workflow-install.json` with exact file/directory ownership;
+- refuses to overwrite pre-existing managed files;
+- does **not** create an ACTIVE task.
+
+The target repository does not depend on this mother repository at product runtime.
+
+## Existing project / migration path
+
+If the target already contains workflow/agent files, do not force-copy over them. Use the universal prompt in `install/ONE_COMMAND_INSTALL_PROMPT.md` so the executor can inspect the repository and adapt safely.
+
+Short form:
+
+```text
+Install the latest stable workflow from `Ran-sh/chatgpt_workflow` into this repository, following `install/ONE_COMMAND_INSTALL_PROMPT.md` exactly. Adapt it only from verified project facts, keep every executor interchangeable, do not modify business code, and do not create an ACTIVE task.
+```
 
 ## Execute a task
 
-A normal task uses a machine-readable contract such as `docs/agent-tasks/ACTIVE_TASK.json`. The selected executor reads the project workflow and task, validates it, performs only the authorized work, writes the required result contract/report, removes the ACTIVE task on completion, and commits only the allowed paths.
+A normal machine-readable task lives at a project-local path such as:
 
-See:
+```text
+docs/agent-tasks/ACTIVE_TASK.json
+```
 
-- `schema/task-contract.schema.json`
-- `schema/result-contract.schema.json`
-- `examples/contracts/`
-- `validator/README.md`
+The selected executor must:
+
+1. read the project workflow;
+2. read and validate the active Task Contract;
+3. perform only authorized work;
+4. produce the required Result Contract/report;
+5. remove the active task only when the contract says the task is complete;
+6. commit/push only allowed paths.
+
+If the active task is missing, the executor stops. It must not infer work from chat history, issues, old reports, or another platform's prior task files.
 
 ## Validate contracts
 
 ```bash
-node validator/validate-contract.mjs task examples/contracts/task-contract.example.json
-node validator/validate-contract.mjs result examples/contracts/result-contract.example.json
+node bin/agent-workflow.mjs validate task examples/contracts/task-contract.example.json
+node bin/agent-workflow.mjs validate result examples/contracts/result-contract.example.json
+```
+
+Or through the installed command:
+
+```bash
+agent-workflow validate task <file>
+agent-workflow validate result <file>
 ```
 
 ## Release / uninstall
 
-The workflow is development infrastructure, not a required product runtime component. A project may keep it or remove it before release.
+The workflow is development infrastructure, not a required product runtime dependency.
 
-Safe removal is ownership-based: the installer records workflow-created files in `docs/.agent-workflow-install.json`. Uninstall removes only those owned files and never guesses ownership or automatically reverts pre-existing files.
+To remove a CLI-installed workflow:
 
-Use `install/ONE_COMMAND_UNINSTALL_PROMPT.md` for the universal removal instruction.
+```bash
+agent-workflow uninstall .
+```
+
+Uninstall is ownership-based. It reads `docs/.agent-workflow-install.json`, removes only recorded workflow-owned files, and removes only directories that the installer itself created and that are still empty. Pre-existing/unmanaged files and directories are preserved.
+
+For agent-driven release cleanup, use `install/ONE_COMMAND_UNINSTALL_PROMPT.md`.
+
+## Development
+
+```bash
+node bin/agent-workflow.mjs --help
+npm test
+npm run validate:examples
+```
+
+CI validates schemas, canonical contracts, CLI lifecycle behavior, and version consistency.
 
 ## Repository layout
 
 ```text
 protocol/      workflow lifecycle and execution rules
-templates/     reusable task/workflow/installation templates
+templates/     reusable workflow and task-mode templates
 schema/        machine-readable Task and Result contracts
-validator/     executable validation reference implementation
+validator/     executable contract validation reference
+bin/           executable CLI entrypoint
+cli/           CLI behavior and lifecycle documentation
+generator/     project detection and installation manifest schema
 agents/        executor-platform adapters
 adapters/      project/stack adaptation guidance
 examples/      real and generic reference implementations
 install/       universal install and uninstall prompts
+test/          CLI lifecycle smoke tests
 ```
 
 ## Reference implementations
